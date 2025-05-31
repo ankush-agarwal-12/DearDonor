@@ -1,8 +1,5 @@
-
-print("🔄 LOADING add_donor.py")
-
 import streamlit as st
-from modules.airtable_utils import add_donor
+from modules.airtable_utils import add_donor, add_donation
 from datetime import datetime
 from modules.generate_receipt import generate_receipt
 from modules.email_utils import send_email_receipt
@@ -20,7 +17,7 @@ def new_donor_view():
             donation_mode = st.selectbox("Donation Mode", ["Cash", "UPI", "Bank Transfer", "Cheque"])
         with col2:
             address = st.text_input("Address")
-            donation_amount = st.number_input("Donation Amount", min_value=0.0, step=10.0)
+            donation_amount = st.number_input("Donation Amount", min_value=1.0, step=10.0)
             donation_date = st.date_input("Donation Date", value=datetime.today())
 
         send_email = st.toggle("Send Email")
@@ -31,40 +28,54 @@ def new_donor_view():
         submitted = st.form_submit_button("Save Donor")
 
         if submitted:
-            success = add_donor(
+            if not donor_name or not email or not donation_amount:
+                st.warning("Please fill all required fields (Donor Name, Email, Donation Amount).")
+                return
+
+            print(f"📝 Adding new donor: {donor_name}, {email}")
+            success, donor_id = add_donor(
                 name=donor_name,
                 email=email,
                 phone=phone,
                 address=address,
                 pan=pan_number,
-                company=is_company,
-                mode=donation_mode,
-                amount=donation_amount,
-                date=donation_date,
-                email_flag=send_email,
-                whatsapp_flag=send_whatsapp
+                company=is_company
             )
 
             if success:
-                st.success("Donor saved successfully!")
+                receipt_filename = f"{donor_name.replace(' ', '_')}_{donation_date.strftime('%Y%m%d')}.pdf"
+                receipt_path = f"receipts/{receipt_filename}"
+                os.makedirs("receipts", exist_ok=True)
+                print(f"📄 Generating receipt at: {receipt_path}")
+                generate_receipt(donor_name, donation_amount, donation_date.strftime('%Y-%m-%d'), "Initial Donation", donation_mode, receipt_path)
+                
+                print(f"📝 Adding donation for Donor ID: {donor_id}")
+                donation_success = add_donation(
+                    donor_id=donor_id,
+                    amount=donation_amount,
+                    date=donation_date,
+                    purpose="Initial Donation",
+                    mode=donation_mode,
+                    email_flag=send_email,
+                    whatsapp_flag=send_whatsapp,
+                    receipt_path=receipt_path
+                )
 
-                # Generate receipt
-                receipt_path = f"receipts/{donor_name}_{datetime.now().strftime('%Y%m%d%H%M%S')}.pdf"
-                generate_receipt(donor_name, donation_amount, donation_date, "N/A", donation_mode, receipt_path)
-                print("📄 Receipt generated at:", receipt_path)
+                if donation_success:
+                    st.success("Donor and donation saved successfully!")
+                    st.info(f"📄 Receipt generated at: {receipt_path}")
 
-                # Try sending email if requested
-                if send_email:
-                    if os.path.exists(receipt_path):
-                        try:
-                            send_email_receipt(email, donor_name, receipt_path)
-                            st.success("📧 Email sent with receipt!")
-                        except Exception as e:
-                            print("❌ Email sending failed:", e)
-                            st.error("Email failed to send. Please check email settings.")
-                    else:
-                        print("❌ Receipt file not found:", receipt_path)
-                        st.error("Receipt file missing. Could not send email.")
+                    if send_email:
+                        if os.path.exists(receipt_path):
+                            try:
+                                print(f"📧 Sending email to: {email}")
+                                send_email_receipt(email, donor_name, receipt_path)
+                                st.success("📧 Email sent with receipt!")
+                            except Exception as e:
+                                st.error(f"❌ Email sending failed: {e}")
+                        else:
+                            st.error("❌ Receipt file not found.")
+                else:
+                    st.error("Donor saved, but failed to save donation.")
             else:
-                st.error("Something went wrong while saving donor data.")
-
+                st.error("Failed to save donor.")

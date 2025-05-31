@@ -5,11 +5,22 @@ def view_donor_profile():
     st.title("🔍 Donor Information")
 
     donors = fetch_donors()
+    if not donors:
+        st.error("No donors found. Please check your Airtable connection or add donors.")
+        return
+
     donor_map = {f"{d['Full Name']} ({d['Email']})": d for d in donors}
+    selected = st.selectbox(
+        "Select Donor",
+        options=["Select a donor..."] + list(donor_map.keys()),
+        index=0
+    )
 
-    selected = st.selectbox("Select Donor", list(donor_map.keys()))
+    if selected == "Select a donor...":
+        st.warning("Please select a donor to view their profile.")
+        return
+
     donor = donor_map[selected]
-
     st.markdown(f"**Name:** {donor.get('Full Name', '-')}")
     st.markdown(f"**Email:** {donor.get('Email', '-')}")
     st.markdown(f"**Phone:** {donor.get('Phone Number', '-')}")
@@ -22,6 +33,6 @@ def view_donor_profile():
     st.write("Debug ID:", donor.get("id"))
     if donations:
         for d in donations:
-            st.markdown(f"- ₹{d['Amount']} on {d['Date']} for {d['Purpose']}")
+            st.markdown(f"- ₹{d['Amount']} on {d['Date']} for {d['Purpose']} ({d['Mode']})")
     else:
         st.info("No donations recorded yet.")
