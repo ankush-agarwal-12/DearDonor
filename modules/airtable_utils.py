@@ -1,22 +1,24 @@
 import os
 import requests
 from dotenv import load_dotenv
+import json
+import pandas as pd
 
 load_dotenv()
 
-API_KEY = os.getenv("AIRTABLE_API_TOKEN")
+# Get environment variables with fallbacks
+API_KEY = os.getenv("AIRTABLE_API_KEY") or os.getenv("AIRTABLE_API_TOKEN")
 BASE_ID = os.getenv("AIRTABLE_BASE_ID")
-TABLE_NAME = os.getenv("DONOR_TABLE_NAME")
+DONORS_TABLE = os.getenv("AIRTABLE_DONORS_TABLE", "Donors")
+DONATIONS_TABLE = os.getenv("AIRTABLE_DONATIONS_TABLE", "Donations")
 
-print("DEBUG: AIRTABLE_BASE_ID =", BASE_ID)
-print("DEBUG: AIRTABLE_API_TOKEN =", API_KEY)
-print("DEBUG: DONOR_TABLE_NAME =", TABLE_NAME)
+if not API_KEY:
+    raise ValueError("Missing Airtable API key. Set AIRTABLE_API_KEY in .env file")
+if not BASE_ID:
+    raise ValueError("Missing Airtable Base ID. Set AIRTABLE_BASE_ID in .env file")
 
-if not all([API_KEY, BASE_ID, TABLE_NAME]):
-    raise ValueError("Missing required environment variables: AIRTABLE_BASE_ID, AIRTABLE_API_TOKEN, or DONOR_TABLE_NAME")
-
-AIRTABLE_URL = f"https://api.airtable.com/v0/{BASE_ID}/{TABLE_NAME}"
-AIRTABLE_URL_DONATIONS = f"https://api.airtable.com/v0/{BASE_ID}/Donations"
+AIRTABLE_URL = f"https://api.airtable.com/v0/{BASE_ID}/{DONORS_TABLE}"
+AIRTABLE_URL_DONATIONS = f"https://api.airtable.com/v0/{BASE_ID}/{DONATIONS_TABLE}"
 
 HEADERS = {
     "Authorization": f"Bearer {API_KEY}",
@@ -24,6 +26,7 @@ HEADERS = {
 }
 
 def add_donor(name, email, phone, address, pan, company):
+    """Add a new donor to Airtable"""
     data = {
         "records": [{
             "fields": {
@@ -37,64 +40,119 @@ def add_donor(name, email, phone, address, pan, company):
         }]
     }
 
-    print("📤 Sending to Airtable Donors:", data)
-    response = requests.post(AIRTABLE_URL, headers=HEADERS, json=data)
-    print("📥 Airtable response:", response.status_code, response.json())
-    
-    if response.status_code != 200:
-        print("ERROR: Failed to add donor:", response.status_code, response.json())
+    try:
+        response = requests.post(AIRTABLE_URL, headers=HEADERS, json=data)
+        response.raise_for_status()  # Raise an exception for bad status codes
+        return True, response.json().get("records", [{}])[0].get("id")
+    except requests.exceptions.RequestException as e:
+        print(f"Error adding donor: {str(e)}")
+        if hasattr(e.response, 'text'):
+            print(f"Response: {e.response.text}")
         return False, None
-    
-    return True, response.json().get("records", [{}])[0].get("id")
 
 def fetch_donors():
-    print("🔍 Fetching all donors from Airtable")
-    response = requests.get(AIRTABLE_URL, headers=HEADERS)
-    if response.status_code != 200:
-        print("ERROR: Failed to fetch donors:", response.status_code, response.json())
+    """Fetch all donors from Airtable"""
+    try:
+        response = requests.get(AIRTABLE_URL, headers=HEADERS)
+        response.raise_for_status()
+        
+        donor_list = []
+        for r in response.json().get("records", []):
+            fields = r.get("fields", {})
+            donor_list.append({
+                "id": r.get("id"),
+                "Full Name": fields.get("Full Name", ""),
+                "Email": fields.get("Email", ""),
+                "Phone": fields.get("Phone Number", ""),
+                "Address": fields.get("Address", ""),
+                "PAN": fields.get("PAN", ""),
+                "Organization": fields.get("Organization", "")
+            })
+        return donor_list
+    except requests.exceptions.RequestException as e:
+        print(f"Error fetching donors: {str(e)}")
+        if hasattr(e.response, 'text'):
+            print(f"Response: {e.response.text}")
         return []
-    
-    donor_list = []
-    for r in response.json().get("records", []):
-        fields = r.get("fields", {})
-        print(f"🐝 Donor record: ID={r.get('id')}, Fields={fields}")
-        donor_list.append({
-            "id": r.get("id"),
-            "Full Name": fields.get("Full Name", ""),
-            "Email": fields.get("Email", ""),
-            "Phone": fields.get("Phone Number", ""),
-            "Address": fields.get("Address", ""),
-            "PAN": fields.get("PAN", ""),
-            "Organization": fields.get("Organization", "")
-        })
-    print(f"📊 Fetched {len(donor_list)} donors")
-    return donor_list
 
-def add_donation(donor_id, amount, date, purpose, mode, email_flag, whatsapp_flag, receipt_path=""):
-    data = {
-        "records": [{
-            "fields": {
-                "Donor": [donor_id],
-                "Donation Amount": float(amount),
-                "Donation Date": str(date),
-                "Donation Purpose": purpose,
-                "Donation Mode": mode,
-                "Send Email Receipt": email_flag,
-                "Send WhatsApp Confirmation": whatsapp_flag,
-                "Receipt URL": receipt_path
+def add_donation(donor_id=None, amount=None, date=None, purpose=None, mode=None, email_flag=None, whatsapp_flag=None, receipt_path=None, donation_data=None):
+    """Add a new donation record to Airtable"""
+    try:
+        # If donation_data is provided, use it directly
+        if donation_data:
+            data = {"records": [{"fields": donation_data}]}
+        else:
+            # Convert date to string if it's a datetime object
+            if hasattr(date, 'strftime'):
+                date = date.strftime('%Y-%m-%d')
+                
+            # Create data in the new Airtable format
+            data = {
+                "records": [{
+                    "fields": {
+                        "Donor": [donor_id],
+                        "Donation Amount": float(amount),
+                        "Donation Date": date,
+                        "Donation Purpose": purpose,
+                        "Donation Mode": mode,
+                        "Send Email Receipt": email_flag,
+                        "Send WhatsApp Confirmation": whatsapp_flag,
+                        "Receipt URL": receipt_path if receipt_path else None
+                    }
+                }]
             }
-        }]
-    }
 
-    print(f"📤 Sending to Airtable Donations: DonorID={donor_id}, Data={data}")
-    response = requests.post(AIRTABLE_URL_DONATIONS, headers=HEADERS, json=data)
-    print("📥 Airtable response:", response.status_code, response.json())
-    
-    if response.status_code != 200:
-        print("ERROR: Failed to add donation:", response.status_code, response.json())
+        print("Sending donation data:", json.dumps(data, indent=2))
+        response = requests.post(
+            AIRTABLE_URL_DONATIONS,
+            headers=HEADERS,
+            json=data
+        )
+        response.raise_for_status()
+        return True
+    except requests.exceptions.RequestException as e:
+        print(f"Error adding donation: {str(e)}")
+        if hasattr(e.response, 'text'):
+            print(f"Response: {e.response.text}")
         return False
-    
-    return True
+
+def fetch_all_donations():
+    """Fetch all donations from Airtable"""
+    try:
+        print("Fetching all donations...")
+        response = requests.get(AIRTABLE_URL_DONATIONS, headers=HEADERS)
+        response.raise_for_status()
+        
+        print("Response status:", response.status_code)
+        data = response.json()
+        print("Raw Airtable response:", json.dumps(data, indent=2))
+
+        donations = []
+        for r in data.get("records", []):
+            fields = r.get("fields", {})
+            donor_ids = fields.get("Donor", [])
+            if not donor_ids:
+                continue
+                
+            donation = {
+                "id": r.get("id"),
+                "Donor": donor_ids[0] if donor_ids else "",
+                "amount": fields.get("Donation Amount", 0),
+                "date": fields.get("Donation Date", ""),
+                "payment_method": fields.get("Donation Mode", ""),
+                "purpose": fields.get("Donation Purpose", ""),
+                "receipt_no": fields.get("Receipt URL", "")
+            }
+            donations.append(donation)
+            
+        print(f"Processed {len(donations)} donations")
+        print("Sample donation:", json.dumps(donations[0] if donations else {}, indent=2))
+        return donations
+    except requests.exceptions.RequestException as e:
+        print(f"Error fetching donations: {str(e)}")
+        if hasattr(e.response, 'text'):
+            print(f"Response: {e.response.text}")
+        return []
 
 def update_donor_info(record_id, name, email, phone, address, pan, org):
     data = {
@@ -107,64 +165,63 @@ def update_donor_info(record_id, name, email, phone, address, pan, org):
             "Organization": org
         }
     }
-    url = f"https://api.airtable.com/v0/{BASE_ID}/{TABLE_NAME}/{record_id}"
-    print("📤 Sending update to Airtable:", data)
+    url = f"https://api.airtable.com/v0/{BASE_ID}/{DONORS_TABLE}/{record_id}"
     response = requests.patch(url, headers=HEADERS, json=data)
-    print("📥 Airtable response:", response.status_code, response.json())
     
     if response.status_code != 200:
-        print("ERROR: Failed to update donor:", response.status_code, response.json())
         return False
     
     return True
 
-def fetch_all_donations():
-    print("🔍 Fetching all donations from Airtable")
-    response = requests.get(AIRTABLE_URL_DONATIONS, headers=HEADERS)
-    if response.status_code != 200:
-        print("ERROR: Failed to fetch donations:", response.status_code, response.json())
-        return []
-
-    donations = []
-    for r in response.json().get("records", []):
-        fields = r.get("fields", {})
-        print(f"🐝 Donation record: ID={r.get('id')}, Donor={fields.get('Donor')}, Fields={fields}")
-        donations.append({
-            "id": r.get("id"),
-            "Donor": fields.get("Donor", [""])[0] if fields.get("Donor") else "",
-            "Amount": fields.get("Donation Amount", 0),
-            "Date": fields.get("Donation Date", ""),
-            "Purpose": fields.get("Donation Purpose", ""),
-            "Mode": fields.get("Donation Mode", ""),
-            "Receipt": fields.get("Receipt URL", "")
-        })
-    print(f"📊 Fetched {len(donations)} donations")
-    return donations
-
 def get_donor_donations(donor_id):
-    params = {
-        "filterByFormula": f"FIND('{donor_id}', ARRAYJOIN({{Donor}}))"
-    }
-    print("💬 Donor ID used in filter:", donor_id)
-    print("💬 Query URL:", f"{AIRTABLE_URL_DONATIONS}?filterByFormula={params['filterByFormula']}")
-    response = requests.get(AIRTABLE_URL_DONATIONS, headers=HEADERS, params=params)
-    print("🧾 Raw Airtable response:", response.status_code, response.json())
-    if response.status_code != 200:
-        print("ERROR: Failed to fetch donor donations:", response.status_code, response.json())
-        return []
-
-    records = response.json().get("records", [])
-    result = []
-    for r in records:
-        f = r.get("fields", {})
-        print(f"🐝 Processing donation: ID={r.get('id')}, Donor={f.get('Donor')}, Fields={f}")
-        result.append({
-            "Amount": f.get("Donation Amount", 0),
-            "Date": f.get("Donation Date", ""),
-            "Purpose": f.get("Donation Purpose", ""),
-            "Mode": f.get("Donation Mode", ""),
-            "Receipt": f.get("Receipt URL", "")
-        })
+    """Get donation history for a specific donor"""
+    print(f"\nFetching donations for donor: {donor_id}")
     
-    print("🐝 Donation records fetched:", result)
-    return result
+    try:
+        # Fetch all donations first
+        response = requests.get(AIRTABLE_URL_DONATIONS, headers=HEADERS)
+        response.raise_for_status()
+        print(f"Response status: {response.status_code}")
+        print(f"Raw response data: {json.dumps(response.json(), indent=2)}")
+        
+        all_records = response.json().get('records', [])
+        print(f"Total donations found: {len(all_records)}")
+        
+        # Filter for this donor's donations
+        donor_records = [
+            record for record in all_records 
+            if record.get('fields', {}).get('Donor', []) and donor_id in record['fields']['Donor']
+        ]
+        print(f"Donations for this donor: {len(donor_records)}")
+        print("Donor records:", json.dumps(donor_records, indent=2))
+        
+        if not donor_records:
+            print("No donations found for this donor")
+            return pd.DataFrame()
+            
+        donations = []
+        for record in donor_records:
+            fields = record.get('fields', {})
+            donation = {
+                'id': record.get('id'),
+                'amount': fields.get('Donation Amount', 0),
+                'date': fields.get('Donation Date', ''),
+                'payment_method': fields.get('Donation Mode', ''),
+                'purpose': fields.get('Donation Purpose', ''),
+                'receipt_no': fields.get('Receipt URL', '')
+            }
+            donations.append(donation)
+            
+        donations_df = pd.DataFrame(donations)
+        if not donations_df.empty:
+            print("Donation records found:", json.dumps(donations, indent=2))
+            donations_df['date'] = pd.to_datetime(donations_df['date'])
+            donations_df = donations_df.sort_values('date', ascending=False)
+        
+        return donations_df
+        
+    except Exception as e:
+        print(f"Error fetching donations: {str(e)}")
+        if hasattr(e, 'response') and hasattr(e.response, 'text'):
+            print(f"Error response: {e.response.text}")
+        return pd.DataFrame()  # Return empty DataFrame on error
