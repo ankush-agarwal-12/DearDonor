@@ -4,13 +4,15 @@ from datetime import datetime, timedelta
 import calendar
 from dateutil.relativedelta import relativedelta
 import os
-from modules.airtable_utils import fetch_all_donations, fetch_donors
+from modules.supabase_utils import fetch_all_donations, fetch_donors, add_donor
+import io
+from io import BytesIO
 
-def export_data_page():
-    st.title("📊 Export Data")
+def data_export_view():
+    st.title("📊 Data Import/Export")
     
-    # Create tabs for different export options
-    donors_tab, donations_tab, custom_tab = st.tabs(["Donors", "Donations", "Custom Export"])
+    # Create tabs for different options
+    import_tab, donors_tab, donations_tab, custom_tab = st.tabs(["Import Data", "Export Donors", "Export Donations", "Custom Export"])
     
     # Fetch all data
     donations = fetch_all_donations()
@@ -19,6 +21,114 @@ def export_data_page():
     # Create donor ID to name mapping
     donor_map = {d["id"]: d["Full Name"] for d in donors}
     
+    with import_tab:
+        st.subheader("Import Donor Data")
+        
+        # Download template section
+        st.markdown("### 📥 Download Import Template")
+        st.markdown("""
+        To import donors, please use our template format. The template includes:
+        - Required fields marked with *
+        - Example data for reference
+        - Field descriptions and formats
+        """)
+        
+        # Create template DataFrame
+        template_df = pd.DataFrame({
+            'Full Name*': ['John Doe', 'Jane Smith Corp'],
+            'Email*': ['john@example.com', 'contact@janesmith.com'],
+            'Phone': ['+91 1234567890', '+91 9876543210'],
+            'Address': ['123 Main St, City', '456 Corp Ave, Business District'],
+            'PAN': ['ABCDE1234F', 'FGHIJ5678K'],
+            'Donor Type': ['Individual', 'Company']
+        })
+        
+        # Convert template to bytes for download
+        template_buffer = io.BytesIO()
+        template_df.to_excel(template_buffer, index=False, sheet_name='DonorTemplate')
+        template_bytes = template_buffer.getvalue()
+        
+        st.download_button(
+            label="📄 Download Import Template",
+            data=template_bytes,
+            file_name="donor_import_template.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+        
+        # Import section
+        st.markdown("### 📤 Import Donors")
+        uploaded_file = st.file_uploader("Upload your donor data (Excel or CSV)", type=['xlsx', 'csv'])
+        
+        if uploaded_file is not None:
+            try:
+                # Read the file
+                if uploaded_file.name.endswith('.csv'):
+                    df = pd.read_csv(uploaded_file)
+                else:
+                    df = pd.read_excel(uploaded_file)
+                
+                # Validate required columns
+                required_columns = ['Full Name*', 'Email*']
+                missing_columns = [col for col in required_columns if col not in df.columns]
+                
+                if missing_columns:
+                    st.error(f"Missing required columns: {', '.join(missing_columns)}")
+                    return
+                
+                # Preview the data
+                st.markdown("### Data Preview")
+                st.dataframe(df.head())
+                
+                # Import button
+                if st.button("Import Donors"):
+                    success_count = 0
+                    error_count = 0
+                    errors = []
+                    
+                    progress_bar = st.progress(0)
+                    status_text = st.empty()
+                    
+                    # Process each row
+                    for index, row in df.iterrows():
+                        try:
+                            # Add donor using the existing function
+                            result = add_donor(
+                                full_name=row['Full Name*'],
+                                email=row['Email*'],
+                                phone=str(row.get('Phone', '')),
+                                address=str(row.get('Address', '')),
+                                pan=str(row.get('PAN', '')),
+                                donor_type=str(row.get('Donor Type', 'Individual'))
+                            )
+                            
+                            if result:
+                                success_count += 1
+                            else:
+                                error_count += 1
+                                errors.append(f"Row {index + 2}: Failed to add donor {row['Full Name*']}")
+                        
+                        except Exception as e:
+                            error_count += 1
+                            errors.append(f"Row {index + 2}: Error - {str(e)}")
+                        
+                        # Update progress
+                        progress = (index + 1) / len(df)
+                        progress_bar.progress(progress)
+                        status_text.text(f"Processing... {index + 1}/{len(df)} donors")
+                    
+                    # Show results
+                    if success_count > 0:
+                        st.success(f"✅ Successfully imported {success_count} donors")
+                    if error_count > 0:
+                        st.error(f"❌ Failed to import {error_count} donors")
+                        st.markdown("### Error Details")
+                        for error in errors:
+                            st.markdown(f"- {error}")
+            
+            except Exception as e:
+                st.error(f"Error reading file: {str(e)}")
+                st.markdown("Please make sure you're using the correct template format.")
+
     with donors_tab:
         st.subheader("Export Donors Data")
         
@@ -28,14 +138,17 @@ def export_data_page():
             
         # Convert donors to DataFrame
         donors_df = pd.DataFrame([{
-            'Donor ID': d['id'],
             'Full Name': d['Full Name'],
             'Email': d['Email'],
             'Phone': d['Phone'],
             'Address': d['Address'],
-            'PAN': d['PAN'],
-            'Organization': d['Organization']
+            'PAN': d.get('pan', ''),
+            'Donor Type': d.get('donor_type', 'Individual')
         } for d in donors])
+        
+        # Print debug information
+        print("Donor data sample:", donors[0] if donors else None)
+        print("Donor DataFrame columns:", donors_df.columns.tolist())
         
         # Export options
         st.markdown("### Export Options")
@@ -100,10 +213,10 @@ def export_data_page():
         donations_df = pd.DataFrame([{
             'Donation ID': d['id'],
             'Donor Name': donor_map.get(d['Donor'], 'Unknown'),
-            'Amount': d['amount'],
+            'Amount': d['Amount'],
             'Date': d['date'],
             'Payment Method': d['payment_method'],
-            'Purpose': d['purpose'],
+            'Purpose': d['Purpose'],  # Using uppercase to match the data structure
             'Receipt': d.get('receipt_no', '')
         } for d in donations])
         
@@ -281,10 +394,10 @@ def export_data_page():
         donations_df = pd.DataFrame([{
             'Donation ID': d['id'],
             'Donor ID': d['Donor'],
-            'Amount': d['amount'],
+            'Amount': d['Amount'],
             'Date': pd.to_datetime(d['date']),
             'Payment Method': d['payment_method'],
-            'Purpose': d['purpose'],
+            'Purpose': d['Purpose'],  # Using uppercase to match the data structure
             'Receipt': d.get('receipt_no', '')
         } for d in donations])
         
@@ -294,8 +407,8 @@ def export_data_page():
             'Email': d['Email'],
             'Phone': d['Phone'],
             'Address': d['Address'],
-            'PAN': d['PAN'],
-            'Organization': d['Organization']
+            'PAN': d.get('pan', ''),
+            'Donor Type': d.get('donor_type', 'Individual')
         } for d in donors])
         
         # Merge datasets
@@ -346,11 +459,11 @@ def export_data_page():
             default=merged_df['Payment Method'].unique().tolist()
         )
         
-        # Organization type filter
-        org_types = st.multiselect(
-            "Organization Types",
-            ["Individual", "Organization"],
-            default=["Individual", "Organization"]
+        # Donor type filter
+        donor_types = st.multiselect(
+            "Donor Types",
+            merged_df['Donor Type'].unique().tolist(),
+            default=merged_df['Donor Type'].unique().tolist()
         )
         
         # Apply filters
@@ -360,7 +473,7 @@ def export_data_page():
             (merged_df['Date'].dt.date >= start_date) &
             (merged_df['Date'].dt.date <= end_date) &
             (merged_df['Payment Method'].isin(payment_methods)) &
-            (merged_df['Organization'].isin(org_types))
+            (merged_df['Donor Type'].isin(donor_types))
         ]
         
         # Display preview with selected fields

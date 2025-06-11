@@ -1,150 +1,388 @@
 import streamlit as st
 import pandas as pd
-import matplotlib.pyplot as plt
-from modules.airtable_utils import fetch_all_donations, fetch_donors
+import plotly.graph_objects as go
 from datetime import datetime, timedelta
+from modules.supabase_utils import fetch_all_donations, fetch_donors
+import locale
+from dateutil.relativedelta import relativedelta
 
-def get_financial_year_dates():
+# Set locale for Indian number formatting
+locale.setlocale(locale.LC_MONETARY, 'en_IN')
+
+def format_indian_currency(amount):
+    """Format amount in Indian currency style"""
+    try:
+        amount = float(amount)
+        if amount >= 10000000:  # For crores
+            return f"₹{amount/10000000:.2f} Cr"
+        elif amount >= 100000:  # For lakhs
+            return f"₹{amount/100000:.2f} L"
+        else:
+            return f"₹{amount:,.2f}"
+    except:
+        return f"₹{amount}"
+
+def get_date_range(period):
+    """Get start and end dates based on selected period"""
     today = datetime.now()
-    if today.month >= 4:  # If current month is April or later
-        start_year = today.year
+    if period == "Last 7 Days":
+        return today - timedelta(days=7), today
+    elif period == "Last 30 Days":
+        return today - timedelta(days=30), today
+    elif period == "This Month":
+        return today.replace(day=1), today
+    elif period == "Last Month":
+        last_month = today.replace(day=1) - timedelta(days=1)
+        return last_month.replace(day=1), last_month
+    elif period == "This FY":
+        if today.month >= 4:  # After April
+            return today.replace(month=4, day=1), today
+        else:  # Before April
+            return today.replace(year=today.year-1, month=4, day=1), today
+    return None, None
+
+def format_date(date_value):
+    """Safely format date value handling NaT"""
+    try:
+        if pd.isna(date_value):
+            return "Not scheduled"
+        return date_value.strftime('%d %b %Y')
+    except:
+        return "Not scheduled"
+
+def dashboard_view():
+    # Custom CSS with fixed light theme styling
+    st.markdown("""
+        <style>
+        /* Base theme */
+        .main {
+            color: black;
+        }
+        
+        /* Dashboard header */
+        .stMarkdown h1 {
+            margin-bottom: 1rem;
+        }
+        
+        /* Header controls */
+        div[data-testid="stHorizontalBlock"] > div[data-testid="column"] {
+            padding-left: 0;
+            padding-right: 0;
+        }
+        
+        /* Time range label */
+        .time-range-label {
+            font-size: 1.5rem;
+            font-weight: 600;
+            margin-bottom: 0.25rem;
+            color: rgb(49, 51, 63);
+        }
+        
+        /* Last updated section */
+        .last-updated-section {
+            text-align: right;
+            margin-bottom: 0.5rem;
+        }
+        
+        .last-updated-label {
+            font-size: 1.2rem;
+            font-weight: 600;
+            color: rgb(49, 51, 63);
+            margin-right: 0.5rem;
+        }
+        
+        .last-updated-time {
+            font-size: 1.2rem;
+            color: rgb(49, 51, 63);
+        }
+        
+        /* Cards */
+        .metric-card {
+            background-color: #f8f9fa;
+            color: black;
+            border-radius: 0.5rem;
+            padding: 1.5rem;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.12);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            border-left: 4px solid #007BFF;
+            margin-bottom: 1rem;
+        }
+        .metric-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            background-color: #f0f0f0;
+        }
+        
+        /* Tooltips */
+        .tooltip {
+            visibility: hidden;
+            background-color: #f8f9fa;
+            color: black;
+            text-align: center;
+            padding: 5px 10px;
+            border-radius: 6px;
+            position: absolute;
+            z-index: 1;
+            bottom: 125%;
+            left: 50%;
+            transform: translateX(-50%);
+            opacity: 0;
+            transition: opacity 0.3s;
+            font-size: 0.8rem;
+            white-space: nowrap;
+            border: 1px solid #e0e0e0;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .metric-card:hover .tooltip {
+            visibility: visible;
+            opacity: 1;
+        }
+        
+        /* Donation Cards */
+        .recent-donation-card {
+            background-color: #f8f9fa;
+            color: black;
+            padding: 1rem;
+            border-radius: 0.5rem;
+            margin: 0.5rem 0;
+            border-left: 4px solid #4CAF50;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.12);
+            transition: transform 0.2s ease;
+        }
+        .recent-donation-card:hover {
+            transform: translateX(5px);
+            background-color: #f0f0f0;
+        }
+        
+        /* Status Tags */
+        .status-tag {
+            padding: 0.25rem 0.5rem;
+            border-radius: 1rem;
+            font-size: 0.8rem;
+            font-weight: 500;
+            display: inline-block;
+        }
+        .status-active {
+            background-color: #E8F5E9;
+            color: #2E7D32;
+        }
+        .status-paused {
+            background-color: #FFF3E0;
+            color: #E65100;
+        }
+        
+        /* Quick Actions */
+        .floating-actions {
+            position: fixed;
+            bottom: 2rem;
+            right: 2rem;
+            background-color: #f8f9fa;
+            color: black;
+            padding: 1rem;
+            border-radius: 0.5rem;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+            z-index: 1000;
+            border: 1px solid #e0e0e0;
+            transition: transform 0.2s ease;
+        }
+        .floating-actions:hover {
+            transform: translateY(-5px);
+        }
+        
+        /* Section Headers */
+        .section-header {
+            color: black;
+            border-bottom: 2px solid #e0e0e0;
+            padding-bottom: 0.5rem;
+            margin-bottom: 1rem;
+            font-size: 1.5rem;
+            font-weight: 600;
+        }
+        
+        /* Links */
+        a {
+            color: #007BFF;
+            text-decoration: none;
+            transition: color 0.2s ease;
+        }
+        a:hover {
+            color: #007BFF;
+            text-decoration: underline;
+        }
+        
+        /* Charts */
+        .js-plotly-plot {
+            background-color: #f8f9fa !important;
+        }
+        .js-plotly-plot .main-svg {
+            background-color: #f8f9fa !important;
+        }
+        
+        /* Reduce spacing in selectbox */
+        .stSelectbox {
+            margin-bottom: 0.5rem;
+        }
+        </style>
+    """, unsafe_allow_html=True)
+
+    # Dashboard Title
+    st.markdown("# 🏠 Dashboard")
+    
+    # Last Updated section (right-aligned)
+    st.markdown(
+        '<div class="last-updated-section">'
+        '<span class="last-updated-label">Last Updated</span>'
+        f'<span class="last-updated-time">{datetime.now().strftime("%I:%M %p")}</span>'
+        '</div>',
+        unsafe_allow_html=True
+    )
+    
+    # Time range and refresh controls on same line
+    col1, col2 = st.columns([4, 1])
+    
+    with col1:
+        st.markdown('<p class="time-range-label">Select Time Range</p>', unsafe_allow_html=True)
+        time_range = st.selectbox(
+            "",
+            ["Last 7 Days", "Last 30 Days", "Last 90 Days", "This Year", "All Time"],
+            label_visibility="collapsed"
+        )
+    
+    with col2:
+        st.markdown('<p class="time-range-label">&nbsp;</p>', unsafe_allow_html=True)  # Spacer for alignment
+        if st.button("🔄 Refresh", type="primary", use_container_width=True):
+            st.rerun()
+
+    # Custom date range if selected
+    if time_range == "Custom Range":
+        col1, col2 = st.columns(2)
+        with col1:
+            start_date = st.date_input("Start Date")
+            # Convert date to datetime at midnight
+            start_date = datetime.combine(start_date, datetime.min.time())
+        with col2:
+            end_date = st.date_input("End Date")
+            # Convert date to datetime at end of day
+            end_date = datetime.combine(end_date, datetime.max.time())
     else:
-        start_year = today.year - 1
-    fy_start = datetime(start_year, 4, 1)
-    fy_end = datetime(start_year + 1, 3, 31)
-    return fy_start, fy_end
+        start_date, end_date = get_date_range(time_range)
 
-def show_dashboard():
-    st.title("🔖 Donation Dashboard")
-
-    # Fetch all data
+    # Fetch and process data
     donations = fetch_all_donations()
     donors = fetch_donors()
     
-    if not donations:
-        st.warning("No donation data found.")
+    if not donations or not donors:
+        st.warning("No data available. Start by adding donors and recording donations.")
         return
 
-    # Create donor ID to name mapping
+    # Create donor map
     donor_map = {d["id"]: d["Full Name"] for d in donors}
-
-    # Create DataFrame
-    df = pd.DataFrame(donations)
     
-    # Replace donor IDs with names
-    df['Donor Name'] = df['Donor'].map(donor_map)
+    # Filter donations by date range
+    df_donations = pd.DataFrame(donations)
+    df_donations['date'] = pd.to_datetime(df_donations['date'])
+    if start_date and end_date:
+        mask = (df_donations['date'] >= start_date) & (df_donations['date'] <= end_date)
+        filtered_df = df_donations[mask]
+    else:
+        filtered_df = df_donations
 
-    try:
-        df['date'] = pd.to_datetime(df['date'])
-    except Exception as e:
-        print(f"Error processing dates: {e}")
-        print("DataFrame columns:", df.columns.tolist())
-        print("Sample data:", df.head().to_dict())
-        st.error(f"Error processing dates: {e}")
-        return
-
-    # Calculate date ranges
-    today = datetime.now()
-    this_month_start = datetime(today.year, today.month, 1)
-    three_months_ago = today - timedelta(days=90)
-    fy_start, fy_end = get_financial_year_dates()
-
-    # Calculate metrics
-    total_donations = df['amount'].sum()
-    this_month_donations = df[df['date'] >= this_month_start]['amount'].sum()
-    last_3_months_donations = df[df['date'] >= three_months_ago]['amount'].sum()
-    this_fy_donations = df[(df['date'] >= fy_start) & (df['date'] <= fy_end)]['amount'].sum()
+    # 2. Quick Statistics Section
+    st.markdown("### 📊 Key Metrics")
     
-    # Display metrics in columns
-    st.subheader("📊 Donation Metrics")
-    col1, col2 = st.columns(2)
+    total_amount = filtered_df['Amount'].sum()
+    num_donations = len(filtered_df)
+    active_donors = filtered_df['Donor'].nunique()
+    
+    col1, col2, col3 = st.columns(3)  # Changed from 4 columns to 3
+    
     with col1:
-        st.metric("This Month", f"₹{this_month_donations:,.0f}")
-        st.metric("Last 3 Months", f"₹{last_3_months_donations:,.0f}")
+        st.markdown(f"""
+            <div class="metric-card">
+                <div class="tooltip">Total donations received in the selected period</div>
+                <h3>💰 Total Donations</h3>
+                <h2>{format_indian_currency(total_amount)}</h2>
+            </div>
+        """, unsafe_allow_html=True)
+    
     with col2:
-        st.metric(f"FY {fy_start.year}-{fy_end.year}", f"₹{this_fy_donations:,.0f}")
-        st.metric("Overall Total", f"₹{total_donations:,.0f}")
-
-    # Additional Statistics
-    st.subheader("📈 Additional Statistics")
-    col3, col4 = st.columns(2)
+        st.markdown(f"""
+            <div class="metric-card">
+                <div class="tooltip">Number of donations received</div>
+                <h3>📊 Number of Donations</h3>
+                <h2>{num_donations:,}</h2>
+            </div>
+        """, unsafe_allow_html=True)
+    
     with col3:
-        st.metric("Total Donors", len(donors))
-        avg_donation = total_donations / len(df) if len(df) > 0 else 0
-        st.metric("Average Donation", f"₹{avg_donation:,.0f}")
-    with col4:
-        st.metric("Total Donations", len(df))
-        if len(df) > 0:
-            last_donation_date = df['date'].max().strftime('%Y-%m-%d')
-            st.metric("Last Donation", last_donation_date)
+        st.markdown(f"""
+            <div class="metric-card">
+                <div class="tooltip">Unique donors who contributed in this period</div>
+                <h3>👥 Active Donors</h3>
+                <h2>{active_donors:,}</h2>
+            </div>
+        """, unsafe_allow_html=True)
 
-    # Create two columns for charts
-    chart_col1, chart_col2 = st.columns(2)
+    # Split view for Recent Donations and Top Donors
+    col1, col2 = st.columns([1.5, 1])
+    
+    # Recent Donations Section
+    with col1:
+        st.markdown('<h3 class="section-header">🔄 Recent Donations</h3>', unsafe_allow_html=True)
+        recent = filtered_df.sort_values('date', ascending=True).tail(3).iloc[::-1]
+        
+        for _, donation in recent.iterrows():
+            st.markdown(f"""
+                <div class="recent-donation-card">
+                    <h4>{format_indian_currency(donation['Amount'])} - {donor_map.get(donation['Donor'], 'Unknown')}</h4>
+                    <p>📅 {donation['date'].strftime('%d %b %Y')}</p>
+                    <p>🎯 {donation.get('Purpose', 'General Donation')}</p>
+                </div>
+            """, unsafe_allow_html=True)
+        
+    # Top Donors Section
+    with col2:
+        st.markdown('<h3 class="section-header">🏆 Top Donors</h3>', unsafe_allow_html=True)
+        
+        # Calculate top donors
+        top_donors_df = filtered_df.groupby('Donor').agg({
+            'Amount': 'sum'
+        }).sort_values('Amount', ascending=False).head(5)
+        
+        # Create a DataFrame with donor names
+        top_donors_display = pd.DataFrame({
+            'Donor': [donor_map.get(d, 'Unknown') for d in top_donors_df.index],
+            'Total Amount': [format_indian_currency(amt) for amt in top_donors_df['Amount']]
+        })
+        
+        # Display as a styled table
+        st.markdown("""
+            <style>
+            .top-donors-table {
+                font-size: 0.9rem;
+                width: 100%;
+                margin-bottom: 1rem;
+            }
+            .top-donors-table th {
+                background-color: #f0f2f6;
+                padding: 0.5rem;
+                text-align: left;
+            }
+            .top-donors-table td {
+                padding: 0.5rem;
+                border-bottom: 1px solid #e0e0e0;
+            }
+            </style>
+        """, unsafe_allow_html=True)
+        
+        st.markdown(
+            top_donors_display.to_html(
+                index=False,
+                classes=['top-donors-table'],
+                escape=False
+            ),
+            unsafe_allow_html=True
+        )
 
-    with chart_col1:
-        # Top Donors - Horizontal Bar Chart
-        st.subheader("🏆 Top Donors")
-        top_donors = df.groupby('Donor Name')['amount'].sum().sort_values(ascending=True).tail(5)
-        
-        fig_donors, ax_donors = plt.subplots(figsize=(6, 3))
-        fig_donors.patch.set_facecolor('#0E1117')  # Dark background
-        ax_donors.set_facecolor('#1B1E23')  # Slightly lighter dark background
-        
-        bars = ax_donors.barh(top_donors.index, top_donors.values, color='#00A6FB')  # Blue bars
-        ax_donors.set_xlabel('Amount (₹)', color='white')
-        ax_donors.tick_params(axis='both', colors='white')
-        ax_donors.spines['top'].set_visible(False)
-        ax_donors.spines['right'].set_visible(False)
-        ax_donors.spines['bottom'].set_color('white')
-        ax_donors.spines['left'].set_color('white')
-        
-        # Add value labels on the bars
-        for bar in bars:
-            width = bar.get_width()
-            ax_donors.text(width, bar.get_y() + bar.get_height()/2, 
-                         f'₹{int(width):,}',
-                         va='center', color='white', fontsize=8)
-        
-        plt.tight_layout()
-        st.pyplot(fig_donors)
-        plt.close()
-
-    with chart_col2:
-        # Monthly Donations for Current FY - Horizontal Bar Chart
-        st.subheader("📅 Monthly Donations (Current FY)")
-        
-        # Create a date range for all months in the FY
-        months = pd.date_range(start=fy_start, end=fy_end, freq='ME')  # Using 'ME' for month end
-        month_labels = months.strftime('%B %Y')
-        
-        # Group donations by month
-        fy_data = df[(df['date'] >= fy_start) & (df['date'] <= fy_end)].copy()
-        monthly_donations = fy_data.groupby(fy_data['date'].dt.strftime('%B %Y'))['amount'].sum()
-        
-        # Ensure all months are present and reverse the order
-        monthly_donations = monthly_donations.reindex(month_labels, fill_value=0)
-        monthly_donations = monthly_donations.iloc[::-1]  # Reverse the order
-        
-        fig_monthly, ax_monthly = plt.subplots(figsize=(6, 4))
-        fig_monthly.patch.set_facecolor('#0E1117')  # Dark background
-        ax_monthly.set_facecolor('#1B1E23')  # Slightly lighter dark background
-        
-        bars = ax_monthly.barh(monthly_donations.index, monthly_donations.values, color='#00A6FB')  # Blue bars
-        ax_monthly.set_xlabel('Amount (₹)', color='white')
-        ax_monthly.tick_params(axis='both', colors='white')
-        ax_monthly.spines['top'].set_visible(False)
-        ax_monthly.spines['right'].set_visible(False)
-        ax_monthly.spines['bottom'].set_color('white')
-        ax_monthly.spines['left'].set_color('white')
-        
-        # Add value labels on the bars
-        for bar in bars:
-            width = bar.get_width()
-            if width > 0:  # Only add label if there's a donation
-                ax_monthly.text(width, bar.get_y() + bar.get_height()/2, 
-                              f'₹{int(width):,}',
-                              va='center', color='white', fontsize=8)
-        
-        plt.tight_layout()
-        st.pyplot(fig_monthly)
-        plt.close()
+    # Remove the entire footer section and its styles
+    st.markdown("---")

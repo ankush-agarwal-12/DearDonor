@@ -2,37 +2,40 @@ import streamlit as st
 import os
 from dotenv import load_dotenv
 import html
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+from email.mime.base import MIMEBase
+from email import encoders
 
 load_dotenv()
 
 # Define multiple default templates
 FORMAL_TEMPLATE = """Dear {{Name}},
 
-We hope this message finds you well. We want to express our heartfelt gratitude for your generous donation to The Stray Army Charitable Trust. Your support means a lot to us and plays a vital role in helping us care for the injured / sick strays.
+Thank you for your generous donation of Rs. {{Amount}} /- (Rupees {{AmountInWords}} Only) to {{orgName}}. Your contribution will help us make a significant impact in the lives of stray animals.
 
-As a token of our appreciation and for your records, we are pleased to provide you with the Money Receipt for your donation:
+Receipt Details:
+Receipt Number: {{receiptNumber}}
+Amount: Rs. {{Amount}} /-
+Date: {{Date}}
+Purpose: {{Purpose}}
+Mode of Payment: {{PaymentMode}}
 
-<b>Donor Name:</b> {{Name}}
-<b>Donation Amount:</b> Rs. {{Amount}} /-
-<b>Donation Date:</b> {{Date}}
-<b>Receipt Number:</b> {{receiptNumber}}
+We have attached the official donation receipt to this email for your records.
 
-Attached to this email, you will find the official donation receipt for your records. 
+Thank you for your support in our mission to help stray animals.
 
-Once again, thank you for your generosity and support. Together, we can make a positive impact in our community.
-
-Warm regards,
-
-
+Best regards,
 {{orgDepartment}}
-<b>{{orgName}}</b>
-<u>{{orgEmail}}</u>
-{{orgPhone}}
-<i>{{orgSocial}}</i>
+{{orgName}}
 
+Contact Information:
+Email: {{orgEmail}}
+Phone: {{orgPhone}}
+Website: {{orgSocial}}
 
-
-<small>** This is a system-generated email, so we kindly ask you to review the receipt for any discrepancies. Please feel free to mail our team at ({{orgEmail}}), if you have any questions or require additional documentation. **</small>"""
+This is an automated receipt. For any questions or concerns, please reach out to us at {{orgEmail}}."""
 
 CONCISE_TEMPLATE = """Dear {{Name}},
 
@@ -50,16 +53,20 @@ Best regards,
 {{orgEmail}} | {{orgPhone}}
 {{orgSocial}}
 
-<small>For any queries, please contact us at {{orgEmail}}</small>"""
+This is an automated receipt. For any questions or concerns, please reach out to us at {{orgEmail}}."""
+
+
 
 DETAILED_TEMPLATE = """Dear {{Name}},
 
-On behalf of {{orgName}}, I want to express our deepest gratitude for your generous donation of Rs. {{Amount}} /- received on {{Date}}. Your support is instrumental in our mission to provide care and shelter to stray animals in need.
+On behalf of {{orgName}}, I want to express our deepest gratitude for your generous donation of Rs. {{Amount}} /- received on {{Date}}. Your support is instrumental in our mission.
 
 Your Donation Details:
-<b>Receipt Number:</b> {{receiptNumber}}
-<b>Amount:</b> Rs. {{Amount}} /-
-<b>Date of Donation:</b> {{Date}}
+Receipt Number: {{receiptNumber}}
+Amount: Rs. {{Amount}} /-
+Date of Donation: {{Date}}
+Purpose: {{Purpose}}
+Payment Mode: {{PaymentMode}}
 
 Impact of Your Donation:
 Your contribution helps us provide:
@@ -75,13 +82,14 @@ With supporters like you, we can continue our work to make a lasting difference 
 With sincere appreciation,
 
 {{orgDepartment}}
-<b>{{orgName}}</b>
-Contact Information:
-<u>{{orgEmail}}</u>
-{{orgPhone}}
-Follow us: <i>{{orgSocial}}</i>
+{{orgName}}
 
-<small>This is an automated receipt. For any questions or concerns, please reach out to us at {{orgEmail}}.</small>"""
+Contact Information:
+{{orgEmail}}
+{{orgPhone}}
+Follow us: {{orgSocial}}
+
+This is an automated receipt. For any questions or concerns, please reach out to us at {{orgEmail}}."""
 
 # Set the formal template as the default
 DEFAULT_TEMPLATE = FORMAL_TEMPLATE
@@ -144,284 +152,130 @@ def format_preview(text):
 def email_settings_page():
     st.title("✉️ Email Template Settings")
     
-    # Documentation section in an expander
-    with st.expander("📚 Template Documentation", expanded=True):
-        # Content Placeholders
+    # Documentation in a clean, collapsible section
+    with st.expander("📝 How to Use Templates", expanded=False):
         st.markdown("""
-        <style>
-        .placeholder-box {
-            border: 1px solid #444;
-            border-radius: 5px;
-            padding: 15px;
-            margin: 8px 0;
-            background-color: #2b2b2b;
-        }
-        .section-header {
-            color: #00cc66;
-            margin-bottom: 15px;
-            font-size: 1.2em;
-            font-weight: bold;
-        }
-        .placeholder-item {
-            display: flex;
-            align-items: center;
-            margin: 8px 0;
-            padding: 8px;
-            background-color: #1e1e1e;
-            border: 1px solid #333;
-            border-radius: 4px;
-        }
-        .placeholder-code {
-            background-color: #333;
-            padding: 2px 6px;
-            border-radius: 3px;
-            color: #00cc66;
-            font-family: monospace;
-        }
-        .placeholder-arrow {
-            color: #888;
-            margin: 0 8px;
-        }
-        .placeholder-desc {
-            color: #ddd;
-        }
-        .tips-list {
-            margin: 0;
-            padding-left: 20px;
-            color: #ddd;
-        }
-        .tips-list li {
-            margin: 5px 0;
-        }
-        .format-example {
-            margin-top: 4px;
-            color: #888;
-            font-size: 0.9em;
-        }
-        </style>
-        """, unsafe_allow_html=True)
-
-        col1, col2 = st.columns(2)
+        ### Available Variables
+        Insert these variables in your template - they will be automatically replaced with actual values:
         
-        with col1:
-            st.markdown('<h3 class="section-header">📝 Content Placeholders</h3>', unsafe_allow_html=True)
-            st.markdown('<div class="placeholder-box">', unsafe_allow_html=True)
-            for placeholder, desc in {
-                "{{Name}}": "Donor's full name",
-                "{{Amount}}": "Donation amount",
-                "{{Date}}": "Donation date",
-                "{{receiptNumber}}": "Receipt number"
-            }.items():
-                st.markdown(f"""
-                <div class="placeholder-item">
-                    <span class="placeholder-code">{placeholder}</span>
-                    <span class="placeholder-arrow">→</span>
-                    <span class="placeholder-desc">{desc}</span>
-                </div>
-                """, unsafe_allow_html=True)
-            st.markdown('</div>', unsafe_allow_html=True)
+        **Donor Details:**
+        - `{{Name}}` - Donor's name
+        - `{{Amount}}` - Donation amount
+        - `{{AmountInWords}}` - Amount in words
+        - `{{Date}}` - Donation date
+        - `{{receiptNumber}}` - Receipt number
+        - `{{Purpose}}` - Purpose of donation
+        - `{{PaymentMode}}` - Payment method
+        
+        **Organization Details:**
+        - `{{orgName}}` - Organization name
+        - `{{orgDepartment}}` - Department name
+        - `{{orgEmail}}` - Contact email
+        - `{{orgPhone}}` - Contact phone
+        - `{{orgSocial}}` - Social media links
+        
+        ### Simple Text Formatting
+        - Start a line with `#` for a large heading
+        - Use `**text**` for bold text
+        - Use `*text*` for italic text
+        - Start a line with `- ` for bullet points
+        """)
 
-            st.markdown('<h3 class="section-header">🏢 Organization Details</h3>', unsafe_allow_html=True)
-            st.markdown('<div class="placeholder-box">', unsafe_allow_html=True)
-            for placeholder, desc in {
-                "{{orgName}}": "Your organization's name",
-                "{{orgDepartment}}": "Department name",
-                "{{orgEmail}}": "Contact email",
-                "{{orgPhone}}": "Contact phone number",
-                "{{orgSocial}}": "Social media links"
-            }.items():
-                st.markdown(f"""
-                <div class="placeholder-item">
-                    <span class="placeholder-code">{placeholder}</span>
-                    <span class="placeholder-arrow">→</span>
-                    <span class="placeholder-desc">{desc}</span>
-                </div>
-                """, unsafe_allow_html=True)
-            st.markdown('</div>', unsafe_allow_html=True)
+    # Template Selection
+    st.subheader("1. Choose Your Template")
+    template_style = st.radio(
+        "Select a template style:",
+        options=["Simple", "Detailed", "Custom"],
+        horizontal=True,
+        help="Choose a pre-made template or create your own"
+    )
 
-        with col2:
-            st.markdown('<h3 class="section-header">🎨 Text Formatting</h3>', unsafe_allow_html=True)
-            st.markdown('<div class="placeholder-box">', unsafe_allow_html=True)
-            
-            formatting_examples = {
-                "<b>text</b>": ("Bold text", "<b>Example</b>"),
-                "<i>text</i>": ("Italic text", "<i>Example</i>"),
-                "<u>text</u>": ("Underlined text", "<u>Example</u>"),
-                "<small>text</small>": ("Smaller text", "<small>Example</small>")
-            }
-            
-            for tag, (desc, example) in formatting_examples.items():
-                st.markdown(f"""
-                <div class="placeholder-item">
-                    <span class="placeholder-code">{tag}</span>
-                    <span class="placeholder-arrow">→</span>
-                    <span class="placeholder-desc">{desc}</span>
-                    <div class="format-example">Example: {example}</div>
-                </div>
-                """, unsafe_allow_html=True)
-            st.markdown('</div>', unsafe_allow_html=True)
-            
-            st.markdown('<h3 class="section-header">💡 Tips</h3>', unsafe_allow_html=True)
-            st.markdown("""
-            <div class="placeholder-box">
-            <ul class="tips-list">
-                <li>Use placeholders consistently throughout the template</li>
-                <li>Preview your template before saving</li>
-                <li>Test formatting with different content lengths</li>
-                <li>Keep the email professional and concise</li>
-            </ul>
-            </div>
-            """, unsafe_allow_html=True)
+    # Initialize the template based on selection
+    if "current_template" not in st.session_state:
+        st.session_state.current_template = get_template()
 
-    # Rest of the existing code
-    current_template = get_template()
+    if template_style == "Simple":
+        current_template = CONCISE_TEMPLATE
+    elif template_style == "Detailed":
+        current_template = DETAILED_TEMPLATE
+    else:  # Custom
+        current_template = st.session_state.current_template
+
+    # Template Editor
+    st.subheader("2. Edit Template")
+    new_template = st.text_area(
+        "Edit your email template:",
+        value=current_template,
+        height=300,
+        help="Use the variables listed above in double curly braces"
+    )
+
+    # Subject Line Editor
+    st.subheader("3. Edit Subject Line")
     current_subject = get_subject()
-    
-    # Add additional styles for preview settings
-    st.markdown("""
-        <style>
-        .preview-section {
-            background-color: #2b2b2b;
-            border: 1px solid #444;
-            border-radius: 5px;
-            padding: 15px;
-            margin: 10px 0;
-        }
-        .preview-header {
-            color: #00cc66;
-            font-size: 1.1em;
-            margin-bottom: 10px;
-            font-weight: bold;
-        }
-        .preview-group {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 10px;
-            margin-bottom: 10px;
-        }
-        .preview-item {
-            background-color: #1e1e1e;
-            border: 1px solid #333;
-            border-radius: 4px;
-            padding: 8px;
-        }
-        .preview-label {
-            color: #888;
-            font-size: 0.9em;
-            margin-bottom: 4px;
-        }
-        </style>
-    """, unsafe_allow_html=True)
+    new_subject = st.text_input(
+        "Email subject line:",
+        value=current_subject,
+        help="You can use {{Name}} in the subject line"
+    )
 
-    with st.form("email_template_form"):
-        # Template Selection
-        st.subheader("Choose a Template Style")
-        template_style = st.radio(
-            "Select a pre-defined template style or customize your own:",
-            options=["Formal (Default)", "Concise", "Detailed", "Custom"],
-            help="Choose a template style as a starting point. You can modify any template after selection."
-        )
-
-        # Set template based on selection
-        if template_style == "Formal (Default)":
-            current_template = FORMAL_TEMPLATE
-        elif template_style == "Concise":
-            current_template = CONCISE_TEMPLATE
-        elif template_style == "Detailed":
-            current_template = DETAILED_TEMPLATE
-        else:  # Custom
-            current_template = get_template()
-
-        # Template Preview Cards
-        st.markdown("### Template Previews")
-        preview_col1, preview_col2 = st.columns(2)
+    # Preview Section
+    st.subheader("4. Preview")
+    with st.expander("📋 View Template Preview", expanded=True):
+        st.markdown("### Subject Line:")
+        st.info(new_subject.replace("{{Name}}", "John Doe"))
         
-        with preview_col1:
-            with st.expander("📝 Formal Template"):
-                st.markdown(format_preview(FORMAL_TEMPLATE.replace("{{Name}}", "John Doe")
-                    .replace("{{Amount}}", "1000")
-                    .replace("{{Date}}", "2024-03-21")
-                    .replace("{{receiptNumber}}", "RCPT123")
-                    .replace("{{orgName}}", "Organization Name")
-                    .replace("{{orgDepartment}}", "Department")
-                    .replace("{{orgEmail}}", "email@org.com")
-                    .replace("{{orgPhone}}", "123-456-7890")
-                    .replace("{{orgSocial}}", "Social Media")), unsafe_allow_html=True)
+        st.markdown("### Email Body:")
+        preview = new_template\
+            .replace("{{Name}}", "John Doe")\
+            .replace("{{Amount}}", "1,000")\
+            .replace("{{AmountInWords}}", "One Thousand")\
+            .replace("{{Date}}", "01/01/2024")\
+            .replace("{{receiptNumber}}", "REC123")\
+            .replace("{{Purpose}}", "General Donation")\
+            .replace("{{PaymentMode}}", "Online Transfer")\
+            .replace("{{orgName}}", "Animal Welfare Organization")\
+            .replace("{{orgDepartment}}", "Accounts Department")\
+            .replace("{{orgEmail}}", "contact@example.org")\
+            .replace("{{orgPhone}}", "+91 1234567890")\
+            .replace("{{orgSocial}}", "Follow us on social media")
+        
+        st.markdown(format_preview(preview), unsafe_allow_html=True)
+
+    # Save Button
+    if st.button("💾 Save Template"):
+        save_template(new_template, new_subject)
+        st.success("✅ Template and subject line saved successfully!")
+        st.session_state.current_template = new_template
+
+def send_email(to_email, subject, body, receipt_path=None):
+    try:
+        # Create message container
+        msg = MIMEMultipart()
+        msg['From'] = get_sender_email()
+        msg['To'] = to_email
+        msg['Subject'] = subject
+
+        # Add body text - preserve line breaks by using proper MIME type
+        msg.attach(MIMEText(body, 'plain', 'utf-8'))
+    
+        # Attach receipt if provided
+        if receipt_path and os.path.exists(receipt_path):
+            with open(receipt_path, 'rb') as attachment:
+                part = MIMEBase('application', 'octet-stream')
+                part.set_payload(attachment.read())
+                encoders.encode_base64(part)
+                part.add_header(
+                    'Content-Disposition',
+                    f'attachment; filename="{os.path.basename(receipt_path)}"'
+                )
+                msg.attach(part)
+
+        # Send email
+        with smtplib.SMTP_SSL('smtp.gmail.com', 465) as server:
+            server.login(get_sender_email(), get_email_password())
+            server.send_message(msg)
             
-            with st.expander("📋 Detailed Template"):
-                st.markdown(format_preview(DETAILED_TEMPLATE.replace("{{Name}}", "John Doe")
-                    .replace("{{Amount}}", "1000")
-                    .replace("{{Date}}", "2024-03-21")
-                    .replace("{{receiptNumber}}", "RCPT123")
-                    .replace("{{orgName}}", "Organization Name")
-                    .replace("{{orgDepartment}}", "Department")
-                    .replace("{{orgEmail}}", "email@org.com")
-                    .replace("{{orgPhone}}", "123-456-7890")
-                    .replace("{{orgSocial}}", "Social Media")), unsafe_allow_html=True)
-
-        with preview_col2:
-            with st.expander("✨ Concise Template"):
-                st.markdown(format_preview(CONCISE_TEMPLATE.replace("{{Name}}", "John Doe")
-                    .replace("{{Amount}}", "1000")
-                    .replace("{{Date}}", "2024-03-21")
-                    .replace("{{receiptNumber}}", "RCPT123")
-                    .replace("{{orgName}}", "Organization Name")
-                    .replace("{{orgDepartment}}", "Department")
-                    .replace("{{orgEmail}}", "email@org.com")
-                    .replace("{{orgPhone}}", "123-456-7890")
-                    .replace("{{orgSocial}}", "Social Media")), unsafe_allow_html=True)
-
-        # Email Subject
-        st.subheader("Email Settings")
-        subject = st.text_input(
-            "Email Subject Line",
-            value=current_subject,
-            help="You can use {{Name}} in the subject line"
-        )
-        
-        # Email Body
-        template = st.text_area(
-            "Email Body Template",
-            value=current_template,
-            height=500,
-            help="Use the placeholders and formatting tags mentioned above"
-        )
-        
-        col1, col2 = st.columns(2)
-        with col1:
-            if st.form_submit_button("Save Template"):
-                save_template(template, subject)
-                st.success("✅ Email template saved successfully!")
-        
-        with col2:
-            if st.form_submit_button("Reset to Default"):
-                save_template(DEFAULT_TEMPLATE, DEFAULT_SUBJECT)
-                st.rerun()
-
-    # Show preview
-    st.subheader("Preview")
-    
-    # Preview subject
-    st.markdown("##### Subject Line Preview:")
-    preview_subject = subject.replace("{{Name}}", "John Doe")
-    st.info(preview_subject)
-    
-    # Preview body
-    st.markdown("##### Email Body Preview:")
-    st.info("This is how your email will look:")
-    st.markdown("---")
-    
-    # Replace placeholders
-    preview = template.replace("{{Name}}", "John Doe") \
-                     .replace("{{Amount}}", "1000") \
-                     .replace("{{Date}}", "2024-03-21") \
-                     .replace("{{receiptNumber}}", "RCPT123") \
-                     .replace("{{orgName}}", "Organization Name") \
-                     .replace("{{orgDepartment}}", "Department") \
-                     .replace("{{orgEmail}}", "email@org.com") \
-                     .replace("{{orgPhone}}", "123-456-7890") \
-                     .replace("{{orgSocial}}", "Social Media")
-    
-    # Format and display preview
-    st.markdown(format_preview(preview), unsafe_allow_html=True)
-    st.markdown("---") 
+        return True, "Email sent successfully!"
+    except Exception as e:
+        return False, f"Failed to send email: {str(e)}" 

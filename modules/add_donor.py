@@ -1,38 +1,43 @@
 import streamlit as st
-from modules.airtable_utils import add_donor
+from modules.supabase_utils import add_donor
 
-def new_donor_view():
-    st.title("New Donor")
-
-    with st.form("new_donor_form"):
-        col1, col2 = st.columns(2)
-        with col1:
-            donor_name = st.text_input("Donor Name")
-            email = st.text_input("Email")
-            phone = st.text_input("Phone")
-        with col2:
-            address = st.text_input("Address")
-            pan_number = st.text_input("PAN Number")
-            is_company = st.toggle("Company")
-
-        submitted = st.form_submit_button("Save Donor")
-
+def add_donor_view():
+    st.title("➕ Add New Donor")
+    
+    with st.form("add_donor_form"):
+        full_name = st.text_input("Full Name*")
+        email = st.text_input("Email*")
+        phone = st.text_input("Phone Number")
+        address = st.text_area("Address")
+        pan = st.text_input("PAN Number")
+        donor_type = st.selectbox(
+            "Donor Type",
+            ["Individual", "Company"],
+            index=0
+        )
+        
+        submitted = st.form_submit_button("Add Donor")
+        
         if submitted:
-            if not donor_name or not email:
-                st.warning("Please fill all required fields (Donor Name, Email).")
+            if not full_name or not email:
+                st.error("Please fill in all required fields marked with *")
                 return
-
-            success, donor_id = add_donor(
-                name=donor_name,
-                email=email,
-                phone=phone,
-                address=address,
-                pan=pan_number,
-                company=is_company
-            )
-
-            if success:
-                st.success("✅ Donor profile created successfully!")
-                st.info("You can now record donations for this donor from the 'Record Donation' page.")
-            else:
-                st.error("Failed to save donor.")
+                
+            try:
+                result = add_donor(
+                    full_name=full_name,
+                    email=email,
+                    phone=phone,
+                    address=address,
+                    pan=pan,
+                    donor_type=donor_type
+                )
+                
+                if result:
+                    st.success("✅ Donor added successfully!")
+                    # Clear form
+                    st.empty()
+                else:
+                    st.error("❌ Failed to add donor. Please try again.")
+            except Exception as e:
+                st.error(f"An error occurred: {e}")
