@@ -165,8 +165,7 @@ def record_donation_view():
         st.session_state.selected_donor = None
     if 'active_recurring_plans' not in st.session_state:
         st.session_state.active_recurring_plans = None
-    if 'amount' not in st.session_state:
-        st.session_state.amount = 0.0
+    
     if 'selected_purpose' not in st.session_state:
         st.session_state.selected_purpose = "General Fund"
     if 'is_recurring_payment' not in st.session_state:
