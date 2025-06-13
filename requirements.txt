@@ -20,3 +20,4 @@ uv==0.7.12
 supabase==1.2.0
 python-dotenv==1.0.1
 reportlab==3.5.68
+num2words==0.5.12
