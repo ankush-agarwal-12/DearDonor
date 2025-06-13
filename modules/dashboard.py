@@ -7,10 +7,9 @@ import locale
 from dateutil.relativedelta import relativedelta
 
 # Set locale for Indian number formatting
-try:
-    locale.setlocale(locale.LC_MONETARY, 'en_IN')
-except locale.Error:
-    locale.setlocale(locale.LC_MONETARY, 'en_US.UTF-8')
+def format_indian_currency(amount):
+    amount = float(amount)
+    return f"₹{amount:,.2f}"
 
 def format_indian_currency(amount):
     """Format amount in Indian currency style"""
