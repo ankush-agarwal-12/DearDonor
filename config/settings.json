@@ -37,6 +37,6 @@
     "receipt_format": {
         "prefix": "DR",
         "format": "{prefix}/{YY}/{MM}/{XXX}",
-        "next_sequence": 26
+        "next_sequence": 37
     }
 }

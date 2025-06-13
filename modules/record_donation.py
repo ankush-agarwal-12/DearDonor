@@ -173,6 +173,8 @@ def record_donation_view():
         st.session_state.is_recurring_payment = False
     if 'selected_recurring_plan' not in st.session_state:
         st.session_state.selected_recurring_plan = None
+    if 'show_add_donor' not in st.session_state:
+        st.session_state.show_add_donor = False
     
     # Header
     st.markdown("# 💰 Record Donation")
@@ -189,7 +191,8 @@ def record_donation_view():
     if not donors:
         st.warning("No donors found. Please add a donor first.")
         if st.button("➕ Add New Donor"):
-            st.switch_page("pages/add_donor.py")
+            st.session_state.show_add_donor = True
+            st.rerun()
         return
     
     # Create donor options with search
@@ -208,9 +211,18 @@ def record_donation_view():
         )
     with col2:
         if st.button("➕ Add New Donor", use_container_width=True):
-            st.switch_page("pages/add_donor.py")
+            st.session_state.show_add_donor = True
+            st.rerun()
     
     # Display donor info and handle recurring donation check
+    if st.session_state.get('show_add_donor'):
+        from modules.add_donor import add_donor_view
+        add_donor_view()
+        if st.button("← Back to Record Donation"):
+            st.session_state.show_add_donor = False
+            st.rerun()
+        return
+    
     if selected_donor:
         donor_info = donor_options[selected_donor]
         donor_id = donor_options[selected_donor]["id"]
@@ -338,86 +350,87 @@ def record_donation_view():
             amount = st.session_state.amount
             purpose = st.session_state.selected_purpose
 
-        # 3. Donation Entry Form
+        # 3. Donation Entry Section (fields outside form for instant reactivity)
+        st.markdown("### 💳 Donation Details")
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.session_state.is_recurring_payment:
+                st.number_input(
+                    "Amount (₹)*",
+                    value=float(st.session_state.selected_recurring_plan['Amount']),
+                    disabled=True,
+                    help="Amount is fixed for recurring payments",
+                    key="amount"
+                )
+            else:
+                st.number_input(
+                    "Amount (₹)*",
+                    min_value=0.0,
+                    step=100.0,
+                    value=st.session_state.amount,
+                    help="Enter the donation amount",
+                    key="amount"
+                )
+        with col2:
+            st.date_input(
+                "Date*",
+                value=st.session_state.get("date", datetime.now()),
+                help="When was the donation made?",
+                key="date"
+            )
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.session_state.is_recurring_payment:
+                st.text_input(
+                    "Purpose*",
+                    value=st.session_state.selected_recurring_plan['Purpose'],
+                    disabled=True,
+                    help="Purpose is fixed for recurring payments",
+                    key="selected_purpose"
+                )
+            else:
+                purpose_options = ["General Fund"] + predefined_purposes
+                if "Other" not in purpose_options:
+                    purpose_options.append("Other")
+                selected_purpose = st.selectbox(
+                    "Purpose*",
+                    options=purpose_options,
+                    index=purpose_options.index(st.session_state.selected_purpose) if st.session_state.selected_purpose in purpose_options else 0,
+                    help="Select the purpose of the donation",
+                    key="selected_purpose"
+                )
+                if selected_purpose == "Other":
+                    st.text_input("Specify Purpose*", key="other_purpose")
+        with col2:
+            st.selectbox(
+                "Payment Method*",
+                ["Cash", "UPI", "Bank Transfer", "Cheque", "Credit Card", "Debit Card"],
+                help="How was the payment made?",
+                key="payment_method"
+            )
+        # Additional payment fields
+        if st.session_state.payment_method in ["Cheque", "Bank Transfer"]:
+            col1, col2 = st.columns(2)
+            with col1:
+                st.text_input(
+                    f"{st.session_state.payment_method} Number*",
+                    help=f"Enter the {st.session_state.payment_method.lower()} number",
+                    key="reference_no"
+                )
+            with col2:
+                st.text_input(
+                    "Bank Name*",
+                    help="Enter the bank name",
+                    key="bank_name"
+                )
+        elif st.session_state.payment_method in ["UPI", "Credit Card", "Debit Card"]:
+            st.text_input(
+                "Transaction Reference*",
+                help="Enter the transaction reference number",
+                key="reference_no"
+            )
+        # 4. Form for receipt options and submit
         with st.form("donation_form", clear_on_submit=False):
-            st.markdown("### 💳 Donation Details")
-            
-            col1, col2 = st.columns(2)
-            with col1:
-                if st.session_state.is_recurring_payment:
-                    amount = st.number_input(
-                        "Amount (₹)*",
-                        value=float(st.session_state.selected_recurring_plan['Amount']),
-                        disabled=True,
-                        help="Amount is fixed for recurring payments"
-                    )
-                else:
-                    amount = st.number_input(
-                        "Amount (₹)*",
-                        min_value=0.0,
-                        step=100.0,
-                        value=st.session_state.amount,
-                        help="Enter the donation amount"
-                    )
-            
-            with col2:
-                date = st.date_input(
-                    "Date*",
-                    value=datetime.now(),
-                    help="When was the donation made?"
-                )
-            
-            col1, col2 = st.columns(2)
-            with col1:
-                if st.session_state.is_recurring_payment:
-                    purpose = st.text_input(
-                        "Purpose*",
-                        value=st.session_state.selected_recurring_plan['Purpose'],
-                        disabled=True,
-                        help="Purpose is fixed for recurring payments"
-                    )
-                else:
-                    purpose_options = ["General Fund"] + predefined_purposes
-                    if "Other" not in purpose_options:
-                        purpose_options.append("Other")
-                    
-                    selected_purpose = st.selectbox(
-                        "Purpose*",
-                        options=purpose_options,
-                        index=purpose_options.index(st.session_state.selected_purpose) if st.session_state.selected_purpose in purpose_options else 0,
-                        help="Select the purpose of the donation"
-                    )
-                    
-                    if selected_purpose == "Other":
-                        purpose = st.text_input("Specify Purpose*")
-                    else:
-                        purpose = selected_purpose
-            
-            with col2:
-                payment_method = st.selectbox(
-                    "Payment Method*",
-                    ["Cash", "UPI", "Bank Transfer", "Cheque", "Credit Card", "Debit Card"],
-                    help="How was the payment made?"
-                )
-            
-            if payment_method in ["Cheque", "Bank Transfer"]:
-                col1, col2 = st.columns(2)
-                with col1:
-                    reference_no = st.text_input(
-                        f"{payment_method} Number*",
-                        help=f"Enter the {payment_method.lower()} number"
-                    )
-                with col2:
-                    bank_name = st.text_input(
-                        "Bank Name*",
-                        help="Enter the bank name"
-                    )
-            elif payment_method in ["UPI", "Credit Card", "Debit Card"]:
-                reference_no = st.text_input(
-                    "Transaction Reference*",
-                    help="Enter the transaction reference number"
-                )
-            
             st.markdown("### 📄 Receipt Options")
             if donor_options[selected_donor].get("Email"):
                 send_receipt = st.checkbox(
@@ -428,49 +441,32 @@ def record_donation_view():
             else:
                 st.warning("⚠️ No email address available for this donor")
                 send_receipt = False
-            
-            # Form submission buttons with explicit styling
-            st.markdown("""
-                <style>
-                    div[data-testid="stFormSubmitButton"] button {
-                        width: 100%;
-                    }
-                    div[data-testid="stFormSubmitButton"] button:first-child {
-                        background-color: rgb(255, 75, 75);
-                        color: rgb(255, 255, 255);
-                    }
-                    div[data-testid="stFormSubmitButton"] button:last-child {
-                        background-color: rgb(255, 255, 255);
-                        color: rgb(0, 0, 0);
-                        border: 1px solid rgb(204, 204, 204);
-                    }
-                </style>
-            """, unsafe_allow_html=True)
-            
-            col1, col2 = st.columns(2)
-            with col1:
-                submitted = st.form_submit_button(
-                    "💰 Record Payment", 
-                    use_container_width=True
-                )
+            # Submit button
+            col1, col2, col3 = st.columns([1, 2, 1])
             with col2:
-                save_another = st.form_submit_button(
-                    "💾 Save & Record Another",
+                submitted = st.form_submit_button(
+                    "💰 Record Payment",
                     use_container_width=True
                 )
-            
-            if submitted or save_another:
+            if submitted:
+                amount = st.session_state.amount
+                date = st.session_state.date
+                if st.session_state.selected_purpose == "Other":
+                    purpose = st.session_state.other_purpose
+                else:
+                    purpose = st.session_state.selected_purpose
+                payment_method = st.session_state.payment_method
+                reference_no = st.session_state.get("reference_no", None)
+                bank_name = st.session_state.get("bank_name", None)
                 if not amount or not date:
                     st.error("Please fill in all required fields marked with *")
                     return
-                
                 try:
                     # Prepare payment details
                     payment_details = {
                         "method": payment_method,
                         "date": date.isoformat()
                     }
-
                     if payment_method in ["Cheque", "Bank Transfer"]:
                         if not reference_no or not bank_name:
                             st.error(f"Please enter both {payment_method} number and bank name")
@@ -485,9 +481,15 @@ def record_donation_view():
                             return
                         payment_details["reference_no"] = reference_no
 
-                    # Generate receipt number
+                    # Generate receipt number and path
                     receipt_number = generate_receipt_number()
+                    receipt_dir = os.path.join("receipts")
+                    os.makedirs(receipt_dir, exist_ok=True)
+                    receipt_path = os.path.join(receipt_dir, f"{receipt_number.replace('/', '_')}.pdf")
+                    
+                    # Add receipt info to payment details
                     payment_details["receipt_number"] = receipt_number
+                    payment_details["receipt_path"] = receipt_path
                     
                     if st.session_state.get('selected_recurring_plan'):
                         # Record recurring payment
@@ -526,11 +528,6 @@ def record_donation_view():
                                 success_message += "\n🔄 Recurring donation has been set up!"
                     
                     if result:
-                        # Generate receipt with proper directory structure
-                        receipt_dir = os.path.join("receipts")
-                        os.makedirs(receipt_dir, exist_ok=True)
-                        receipt_path = os.path.join(receipt_dir, f"{receipt_number.replace('/', '_')}.pdf")
-                        
                         donor_data = {
                             "name": donor_options[selected_donor]["Full Name"],
                             "amount": plan['Amount'] if st.session_state.get('selected_recurring_plan') else amount,
@@ -542,33 +539,12 @@ def record_donation_view():
                         }
                         
                         try:
+                            # Generate receipt
                             generate_receipt(donor_data, receipt_path)
-                            # Update payment details with receipt path after successful generation
-                            payment_details["receipt_path"] = receipt_path
                             
-                            # Update the donation record with the receipt path
-                            result = record_donation(
-                                donor_id=donor_options[selected_donor]["id"],
-                                amount=amount,
-                                date=date.isoformat(),
-                                purpose=purpose if selected_purpose == "Other" else selected_purpose,
-                                payment_method=payment_method,
-                                payment_details=payment_details,
-                                is_recurring=st.session_state.show_recurring_fields,
-                                recurring_frequency=recurring_frequency if st.session_state.show_recurring_fields else None,
-                                start_date=start_date.isoformat() if st.session_state.show_recurring_fields else None,
-                                next_due_date=next_due.isoformat() if st.session_state.show_recurring_fields else None,
-                                recurring_status="Active" if st.session_state.show_recurring_fields else None,
-                                linked_to_recurring=False,
-                                is_scheduled_payment=False
-                            )
-                        except Exception as e:
-                            st.error(f"Failed to generate receipt: {str(e)}")
-                            receipt_path = None
-                        
-                        if receipt_path and send_receipt and donor_options[selected_donor].get("Email"):
-                            try:
-                                sent = send_email_receipt(
+                            # Send email if requested
+                            if send_receipt and donor_options[selected_donor].get("Email"):
+                                email_sent = send_email_receipt(
                                     to_email=donor_options[selected_donor]["Email"],
                                     donor_name=donor_options[selected_donor]["Full Name"],
                                     receipt_path=receipt_path,
@@ -577,33 +553,40 @@ def record_donation_view():
                                     purpose=donor_data["purpose"],
                                     payment_mode=payment_method
                                 )
-                                if sent:
+                                if email_sent:
                                     success_message += "\n📧 Receipt sent via email!"
                                 else:
                                     success_message += "\n⚠️ Failed to send receipt via email."
-                            except Exception as e:
-                                success_message += f"\n⚠️ Error sending email: {str(e)}"
-                        
-                        st.success(success_message)
-                        
-                        if receipt_path:
+                            
+                            # Store receipt info in session state for access outside form
                             st.session_state.last_receipt_path = receipt_path
-                            st.session_state.last_donor_email = donor_options[selected_donor].get("Email")
-                            st.session_state.last_donor_name = donor_options[selected_donor]["Full Name"]
-                            st.session_state.last_donation_amount = donor_data["amount"]
-                        
-                        if save_another:
-                            st.session_state.selected_donor = None
-                            st.session_state.active_recurring_plans = None
-                            st.session_state.is_recurring_payment = False
-                            st.session_state.selected_recurring_plan = None
-                            st.session_state.show_recurring_fields = False
+                            st.session_state.last_receipt_number = receipt_number
+                            st.session_state.last_success_message = success_message
+                            
+                            # Rerun to show the download button outside form
                             st.rerun()
+                            
+                        except Exception as e:
+                            st.error(f"Failed to generate receipt: {str(e)}")
+                            receipt_path = None
                     else:
                         st.error("❌ Failed to record donation. Please try again.")
 
                 except Exception as e:
                     st.error(f"An error occurred: {str(e)}")
+
+    # Show receipt download options outside the form if a receipt was generated
+    if 'last_receipt_path' in st.session_state and st.session_state.last_receipt_path:
+        st.success(st.session_state.last_success_message)
+        
+        with open(st.session_state.last_receipt_path, "rb") as file:
+            st.download_button(
+                label="📄 Download Receipt",
+                data=file,
+                file_name=f"{st.session_state.last_receipt_number.replace('/', '_')}.pdf",
+                mime="application/pdf",
+                use_container_width=True
+            )
 
 def custom_button(label, is_primary=True):
     """Create a custom styled button"""
@@ -755,9 +738,15 @@ def show_donation_form():
                             return
                         payment_details["reference_no"] = reference_no
 
-                    # Generate receipt number
+                    # Generate receipt number and path
                     receipt_number = generate_receipt_number()
+                    receipt_dir = os.path.join("receipts")
+                    os.makedirs(receipt_dir, exist_ok=True)
+                    receipt_path = os.path.join(receipt_dir, f"{receipt_number.replace('/', '_')}.pdf")
+                    
+                    # Add receipt info to payment details
                     payment_details["receipt_number"] = receipt_number
+                    payment_details["receipt_path"] = receipt_path
                     
                     if st.session_state.get('selected_recurring_plan'):
                         # Record recurring payment
@@ -796,11 +785,6 @@ def show_donation_form():
                                 success_message += "\n🔄 Recurring donation has been set up!"
                     
                     if result:
-                        # Generate receipt with proper directory structure
-                        receipt_dir = os.path.join("receipts")
-                        os.makedirs(receipt_dir, exist_ok=True)
-                        receipt_path = os.path.join(receipt_dir, f"{receipt_number.replace('/', '_')}.pdf")
-                        
                         donor_data = {
                             "name": donor_options[selected_donor]["Full Name"],
                             "amount": plan['Amount'] if st.session_state.get('selected_recurring_plan') else amount,
@@ -810,29 +794,41 @@ def show_donation_form():
                             "payment_mode": payment_method,
                             "pan": donor_options[selected_donor].get("PAN", "")
                         }
-
-                        # Generate and save receipt
-                        generate_receipt(receipt_path, donor_data)
                         
-                        # Show success message and receipt download button
-                        st.success(success_message)
-                        
-                        col1, col2 = st.columns(2)
-                        with col1:
-                            with open(receipt_path, "rb") as file:
-                                st.download_button(
-                                    label="📄 Download Receipt",
-                                    data=file,
-                                    file_name=f"{receipt_number.replace('/', '_')}.pdf",
-                                    mime="application/pdf",
-                                    use_container_width=True
+                        try:
+                            # Generate receipt
+                            generate_receipt(donor_data, receipt_path)
+                            
+                            # Send email if requested
+                            if send_receipt and donor_options[selected_donor].get("Email"):
+                                email_sent = send_email_receipt(
+                                    to_email=donor_options[selected_donor]["Email"],
+                                    donor_name=donor_options[selected_donor]["Full Name"],
+                                    receipt_path=receipt_path,
+                                    amount=donor_data["amount"],
+                                    receipt_number=receipt_number,
+                                    purpose=donor_data["purpose"],
+                                    payment_mode=payment_method
                                 )
-                        with col2:
-                            if st.button("📝 Record Another", use_container_width=True):
-                                st.session_state.selected_donor = None
-                                st.session_state.show_recurring_fields = False
-                                st.session_state.selected_recurring_plan = None
-                                st.experimental_rerun()
+                                if email_sent:
+                                    success_message += "\n📧 Receipt sent via email!"
+                                else:
+                                    success_message += "\n⚠️ Failed to send receipt via email."
+                            
+                            # Store receipt info in session state for access outside form
+                            st.session_state.last_receipt_path = receipt_path
+                            st.session_state.last_receipt_number = receipt_number
+                            st.session_state.last_success_message = success_message
+                            
+                            # Rerun to show the download button outside form
+                            st.rerun()
+                            
+                        except Exception as e:
+                            st.error(f"Failed to generate receipt: {str(e)}")
+                            receipt_path = None
+                    else:
+                        st.error("❌ Failed to record donation. Please try again.")
+
                 except Exception as e:
                     st.error(f"An error occurred while recording the donation: {str(e)}")
     except Exception as e:

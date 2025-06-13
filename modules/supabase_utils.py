@@ -4,6 +4,7 @@ from dotenv import load_dotenv
 from datetime import datetime
 import json
 import pandas as pd
+from dateutil.relativedelta import relativedelta
 
 load_dotenv()
 
@@ -176,11 +177,13 @@ def get_active_recurring_donations(donor_id):
         print(f"Input donor_id: {donor_id}")
         
         # Query the donations table for active recurring donations
+        # Only get the original recurring plans, not the linked payments
         query = supabase.table("donations") \
             .select("*, donors(full_name, email)") \
             .eq("donor_id", donor_id) \
             .eq("is_recurring", True) \
             .eq("recurring_status", "Active") \
+            .eq("linked_to_recurring", False) \
             .order("start_date", desc=True)
             
         print(f"Executing query: {query}")
@@ -248,6 +251,7 @@ def record_recurring_payment(donor_id, recurring_id, amount, payment_date, payme
             .execute()
             
         if not recurring.data:
+            print("No recurring plan found")
             return False
             
         # Record the payment as a linked donation
@@ -268,11 +272,33 @@ def record_recurring_payment(donor_id, recurring_id, amount, payment_date, payme
         result = supabase.table("donations").insert(data).execute()
         
         if result.data:
-            # Update the last_paid_date of the recurring donation
+            # Calculate next due date based on frequency
+            frequency = recurring.data.get("recurring_frequency")
+            payment_date_obj = datetime.fromisoformat(payment_date.isoformat()) if hasattr(payment_date, 'isoformat') else datetime.fromisoformat(payment_date)
+            
+            if frequency == "Monthly":
+                next_due = payment_date_obj + relativedelta(months=1)
+            elif frequency == "Quarterly":
+                next_due = payment_date_obj + relativedelta(months=3)
+            elif frequency == "Half-Yearly":
+                next_due = payment_date_obj + relativedelta(months=6)
+            else:  # Yearly
+                next_due = payment_date_obj + relativedelta(years=1)
+            
+            # Update both last_paid_date and next_due_date
+            update_data = {
+                "last_paid_date": payment_date.isoformat() if hasattr(payment_date, 'isoformat') else payment_date,
+                "next_due_date": next_due.isoformat()
+            }
+            
+            print(f"Updating recurring plan with data: {update_data}")
+            
             update_result = supabase.table("donations")\
-                .update({"last_paid_date": payment_date})\
+                .update(update_data)\
                 .eq("id", recurring_id)\
                 .execute()
+            
+            print(f"Update result: {update_result.data}")
             
             return update_result.data is not None
             

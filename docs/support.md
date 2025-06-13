@@ -1,6 +1,165 @@
 # Support Center
 
-Welcome to the DearDonor Support Center. We're here to help you make the most of our platform.
+Welcome to the DearDonor Support Center. Here you'll find help and guidance for using the platform effectively.
+
+## Getting Help
+
+### 📚 Documentation
+Access our comprehensive documentation:
+- User Guide
+- FAQ
+- Best Practices
+- Feature Guides
+- Troubleshooting Tips
+
+### 🔍 Common Issues
+
+#### Receipt Generation
+If you encounter issues with receipts:
+1. Check file permissions
+2. Ensure proper internet connection
+3. Verify donor email address
+4. Try refreshing the page
+5. Contact support if needed
+
+#### Email Sending
+For email-related issues:
+1. Verify email settings
+2. Check donor email address
+3. Ensure receipt was generated
+4. Try resending the email
+
+#### Data Export
+If export fails:
+1. Check internet connection
+2. Verify file permissions
+3. Try a smaller date range
+4. Use different export format
+
+## Feature Guides
+
+### 💰 Donation Recording
+Step-by-step guidance:
+1. Selecting donors
+2. Entering donation details
+3. Choosing payment methods
+4. Setting up recurring donations
+5. Managing receipt options
+
+### 📄 Receipt Management
+Learn about:
+- Individual receipt download
+- Bulk receipt download
+- Email receipt options
+- Receipt customization
+- Receipt numbering system
+
+### ⚙️ Settings Configuration
+Help with:
+- General Settings setup
+- Email template configuration
+- PDF receipt customization
+- Donation purposes management
+- Payment method setup
+
+## Best Practices
+
+### 📊 Data Management
+Recommended practices:
+1. Regular data exports
+2. Proper donor information
+3. Accurate receipt records
+4. Organized file structure
+5. Regular backups
+
+### 🔄 Workflow Optimization
+Tips for efficiency:
+1. Record donations promptly
+2. Send receipts immediately
+3. Keep donor info updated
+4. Monitor recurring donations
+5. Regular system checks
+
+## Troubleshooting
+
+### 🚨 Common Problems
+
+#### System Access
+If you can't access the system:
+1. Check internet connection
+2. Clear browser cache
+3. Try different browser
+4. Verify login credentials
+
+#### Data Issues
+For data-related problems:
+1. Verify input accuracy
+2. Check required fields
+3. Validate data formats
+4. Review error messages
+
+#### Export Problems
+When exports fail:
+1. Check file size
+2. Verify permissions
+3. Try smaller batches
+4. Use different format
+
+## Getting Support
+
+### 📧 Contact Support
+For technical issues:
+1. Describe the problem clearly
+2. Include error messages
+3. List steps to reproduce
+4. Provide relevant screenshots
+5. Share system details
+
+### 🔄 Updates and Maintenance
+Stay informed about:
+- System updates
+- New features
+- Bug fixes
+- Maintenance schedules
+- Important notices
+
+## Security Guidelines
+
+### 🔒 Best Practices
+Follow these guidelines:
+1. Regular password updates
+2. Secure login practices
+3. Data protection
+4. Privacy compliance
+5. Access control
+
+### ⚠️ Important Reminders
+Remember to:
+- Log out after sessions
+- Keep credentials secure
+- Report suspicious activity
+- Follow data guidelines
+- Update contact information
+
+## Feature Requests
+
+### 💡 Suggestions
+Help us improve:
+1. Submit feature ideas
+2. Provide use cases
+3. Share feedback
+4. Report bugs
+5. Suggest enhancements
+
+## Additional Resources
+
+### 📚 Helpful Links
+Quick access to:
+- User Documentation
+- FAQ Section
+- Best Practices Guide
+- Troubleshooting Tips
+- Contact Information
 
 ## Contact Support
 

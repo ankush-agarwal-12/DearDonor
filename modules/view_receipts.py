@@ -37,21 +37,10 @@ def view_receipts_view():
     df['donor_name'] = df['Donor'].map(donor_map)
     df['date'] = pd.to_datetime(df['date'])
     
-    # Add sorting options
-    st.markdown("### 🔄 Sort Options")
-    sort_order = st.radio(
-        "Sort donations by date:",
-        ["Latest to Oldest", "Oldest to Latest"],
-        horizontal=True
-    )
+    # Add sorting options and filters in a single row
+    st.markdown("### 🔍 Filters & Sort")
     
-    # Sort the dataframe based on user selection
-    df = df.sort_values('date', ascending=(sort_order == "Oldest to Latest"))
-    
-    # Filters section
-    st.markdown("### 🔍 Filters")
-    
-    col1, col2, col3 = st.columns(3)
+    col1, col2, col3, col4 = st.columns([2, 2, 2, 1])
     
     with col1:
         # Date range filter
@@ -117,6 +106,16 @@ def view_receipts_view():
             (filtered_df['Amount'] >= min_amount) & 
             (filtered_df['Amount'] <= max_amount)
         ]
+    
+    with col4:
+        # Sort options
+        sort_order = st.radio(
+            "Sort by date:",
+            ["Latest to Oldest", "Oldest to Latest"],
+            label_visibility="collapsed"
+        )
+        # Sort the dataframe based on user selection
+        filtered_df = filtered_df.sort_values('date', ascending=(sort_order == "Oldest to Latest"))
     
     # Summary section
     st.markdown("### 📊 Summary")
@@ -211,11 +210,6 @@ def view_receipts_view():
             # Export receipts as ZIP
             receipts_available = filtered_df['receipt_no'].notna().any()
             if receipts_available:
-                # Add debug information about filtered data
-                st.write("Debug Information:")
-                st.write(f"Total donations in filter: {len(filtered_df)}")
-                st.write(f"Donations with receipts: {filtered_df['receipt_no'].notna().sum()}")
-                
                 # Create a list of valid receipt paths
                 valid_receipts = []
                 for receipt_path in filtered_df['receipt_no'].dropna():
@@ -225,8 +219,6 @@ def view_receipts_view():
                             'path': receipt_path,
                             'donor_name': filtered_df[filtered_df['receipt_no'] == receipt_path]['donor_name'].iloc[0]
                         })
-                
-                st.write(f"Valid receipts found: {len(valid_receipts)}")
                 
                 if valid_receipts:
                     zip_buffer = BytesIO()
@@ -244,14 +236,12 @@ def view_receipts_view():
                                     new_filename = f"{donor_name}_{filename}"
                                     # Add file to ZIP
                                     zip_file.write(receipt_path, new_filename)
-                                    st.write(f"Added receipt: {new_filename}")  # Debug line
                             except Exception as e:
                                 st.warning(f"Could not add receipt {receipt_path} to ZIP: {str(e)}")
                                 continue
                     
                     # Only offer download if we successfully added files
                     if zip_file.filelist:
-                        st.write(f"Total receipts in ZIP: {len(zip_file.filelist)}")  # Debug line
                         zip_buffer.seek(0)
                         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
                         st.download_button(

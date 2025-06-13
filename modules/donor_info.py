@@ -57,7 +57,7 @@ def donor_info_view():
         filtered_donors = donors_df
 
     for _, donor in filtered_donors.iterrows():
-        with st.expander(f"🧑 {donor['Full Name']}"):
+        
             col1, col2 = st.columns([3, 2])
             
             with col1:
