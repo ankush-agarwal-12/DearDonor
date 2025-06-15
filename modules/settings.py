@@ -199,7 +199,8 @@ def settings_view():
                     "instagram": instagram,
                     "youtube": youtube
                 },
-                "signature_holder": settings.get('organization', {}).get('signature_holder', DEFAULT_SETTINGS['signature_holder'])
+                "signature_holder": settings.get('organization', {}).get('signature_holder', DEFAULT_SETTINGS['organization']['signature_holder'])
+
             }
             save_settings(settings)
             st.success("✅ Organization information saved successfully!")
