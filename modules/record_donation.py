@@ -473,6 +473,14 @@ def record_donation_view():
                     st.error("Please fill in all required fields marked with *")
                     return
                 try:
+                    # Show progress bar
+                    progress_bar = st.progress(0)
+                    status_text = st.empty()
+                    
+                    # Update progress for each step
+                    status_text.text("Preparing payment details...")
+                    progress_bar.progress(20)
+                    
                     # Prepare payment details
                     payment_details = {
                         "method": payment_method,
@@ -488,6 +496,8 @@ def record_donation_view():
                             payment_details["reference_no"] = reference_no
 
                     # Generate receipt number and path
+                    status_text.text("Generating receipt number...")
+                    progress_bar.progress(40)
                     receipt_number = generate_receipt_number()
                     receipt_dir = os.path.join("receipts")
                     os.makedirs(receipt_dir, exist_ok=True)
@@ -496,6 +506,9 @@ def record_donation_view():
                     # Add receipt info to payment details
                     payment_details["receipt_number"] = receipt_number
                     payment_details["receipt_path"] = receipt_path
+                    
+                    status_text.text("Recording payment...")
+                    progress_bar.progress(60)
                     
                     if st.session_state.get('selected_recurring_plan'):
                         # Record recurring payment
@@ -534,6 +547,9 @@ def record_donation_view():
                                 success_message += "\n🔄 Recurring donation has been set up!"
                     
                     if result:
+                        status_text.text("Generating receipt...")
+                        progress_bar.progress(80)
+                        
                         donor_data = {
                             "name": donor_options[selected_donor]["Full Name"],
                             "amount": plan['Amount'] if st.session_state.get('selected_recurring_plan') else amount,
@@ -550,6 +566,8 @@ def record_donation_view():
                             
                             # Send email if requested
                             if send_receipt and donor_options[selected_donor].get("Email"):
+                                status_text.text("Sending email receipt...")
+                                progress_bar.progress(90)
                                 email_sent = send_email_receipt(
                                     to_email=donor_options[selected_donor]["Email"],
                                     donor_name=donor_options[selected_donor]["Full Name"],
@@ -563,6 +581,10 @@ def record_donation_view():
                                     success_message += "\n📧 Receipt sent via email!"
                                 else:
                                     success_message += "\n⚠️ Failed to send receipt via email."
+                            
+                            # Complete progress
+                            status_text.text("Payment recorded successfully!")
+                            progress_bar.progress(100)
                             
                             # Store receipt info in session state for access outside form
                             st.session_state.last_receipt_path = receipt_path
@@ -724,6 +746,14 @@ def show_donation_form():
 
             if submitted:
                 try:
+                    # Show progress bar
+                    progress_bar = st.progress(0)
+                    status_text = st.empty()
+                    
+                    # Update progress for each step
+                    status_text.text("Preparing payment details...")
+                    progress_bar.progress(20)
+                    
                     # Prepare payment details
                     payment_details = {
                         "method": payment_method,
@@ -745,6 +775,8 @@ def show_donation_form():
                         payment_details["reference_no"] = reference_no
 
                     # Generate receipt number and path
+                    status_text.text("Generating receipt number...")
+                    progress_bar.progress(40)
                     receipt_number = generate_receipt_number()
                     receipt_dir = os.path.join("receipts")
                     os.makedirs(receipt_dir, exist_ok=True)
@@ -753,6 +785,9 @@ def show_donation_form():
                     # Add receipt info to payment details
                     payment_details["receipt_number"] = receipt_number
                     payment_details["receipt_path"] = receipt_path
+                    
+                    status_text.text("Recording payment...")
+                    progress_bar.progress(60)
                     
                     if st.session_state.get('selected_recurring_plan'):
                         # Record recurring payment
@@ -791,6 +826,9 @@ def show_donation_form():
                                 success_message += "\n🔄 Recurring donation has been set up!"
                     
                     if result:
+                        status_text.text("Generating receipt...")
+                        progress_bar.progress(80)
+                        
                         donor_data = {
                             "name": donor_options[selected_donor]["Full Name"],
                             "amount": plan['Amount'] if st.session_state.get('selected_recurring_plan') else amount,
@@ -807,6 +845,8 @@ def show_donation_form():
                             
                             # Send email if requested
                             if send_receipt and donor_options[selected_donor].get("Email"):
+                                status_text.text("Sending email receipt...")
+                                progress_bar.progress(90)
                                 email_sent = send_email_receipt(
                                     to_email=donor_options[selected_donor]["Email"],
                                     donor_name=donor_options[selected_donor]["Full Name"],
@@ -820,6 +860,10 @@ def show_donation_form():
                                     success_message += "\n📧 Receipt sent via email!"
                                 else:
                                     success_message += "\n⚠️ Failed to send receipt via email."
+                            
+                            # Complete progress
+                            status_text.text("Payment recorded successfully!")
+                            progress_bar.progress(100)
                             
                             # Store receipt info in session state for access outside form
                             st.session_state.last_receipt_path = receipt_path
