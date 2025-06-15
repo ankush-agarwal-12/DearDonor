@@ -157,6 +157,26 @@ def record_donation_view():
             font-weight: bold;
             margin-bottom: 15px;
         }
+        /* Add custom styling for quick amount buttons */
+        .quick-amount-btn {
+            background-color: transparent !important;
+            border: 1px solid #d3d3d3 !important;
+            border-radius: 999px !important;
+            padding: 4px 12px !important;
+            font-size: 0.9em !important;
+            color: #333 !important;
+            transition: background-color 0.2s ease !important;
+            margin: 0 4px !important;
+            min-width: 80px !important;
+            text-align: center !important;
+        }
+        .quick-amount-btn:hover {
+            background-color: #f5f5f5 !important;
+            border-color: #bdbdbd !important;
+        }
+        .quick-amount-btn:active {
+            background-color: #f0f0f0 !important;
+        }
         </style>
     """, unsafe_allow_html=True)
     
@@ -404,29 +424,21 @@ def record_donation_view():
         with col2:
             st.selectbox(
                 "Payment Method*",
-                ["Cash", "UPI", "Bank Transfer", "Cheque", "Credit Card", "Debit Card"],
+                ["Cash", "UPI", "Cheque", "Card / Net Banking"],
                 help="How was the payment made?",
                 key="payment_method"
             )
         # Additional payment fields
-        if st.session_state.payment_method in ["Cheque", "Bank Transfer"]:
-            col1, col2 = st.columns(2)
-            with col1:
-                st.text_input(
-                    f"{st.session_state.payment_method} Number*",
-                    help=f"Enter the {st.session_state.payment_method.lower()} number",
-                    key="reference_no"
-                )
-            with col2:
-                st.text_input(
-                    "Bank Name*",
-                    help="Enter the bank name",
-                    key="bank_name"
-                )
-        elif st.session_state.payment_method in ["UPI", "Credit Card", "Debit Card"]:
+        if st.session_state.payment_method in ["Card / Net Banking", "Cheque"]:
             st.text_input(
-                "Transaction Reference*",
-                help="Enter the transaction reference number",
+                f"{st.session_state.payment_method} Number",
+                help=f"Enter the {st.session_state.payment_method.lower()} number (optional)",
+                key="reference_no"
+            )
+        elif st.session_state.payment_method == "UPI":
+            st.text_input(
+                "Transaction Reference",
+                help="Enter the transaction reference number (optional)",
                 key="reference_no"
             )
         # 4. Form for receipt options and submit
@@ -457,7 +469,6 @@ def record_donation_view():
                     purpose = st.session_state.selected_purpose
                 payment_method = st.session_state.payment_method
                 reference_no = st.session_state.get("reference_no", None)
-                bank_name = st.session_state.get("bank_name", None)
                 if not amount or not date:
                     st.error("Please fill in all required fields marked with *")
                     return
@@ -467,19 +478,14 @@ def record_donation_view():
                         "method": payment_method,
                         "date": date.isoformat()
                     }
-                    if payment_method in ["Cheque", "Bank Transfer"]:
-                        if not reference_no or not bank_name:
-                            st.error(f"Please enter both {payment_method} number and bank name")
-                            return
-                        payment_details.update({
-                            "reference_no": reference_no,
-                            "bank_name": bank_name
-                        })
-                    elif payment_method in ["UPI", "Credit Card", "Debit Card"]:
-                        if not reference_no:
-                            st.error("Please enter the transaction reference number")
-                            return
-                        payment_details["reference_no"] = reference_no
+                    if payment_method in ["Card / Net Banking", "Cheque"]:
+                        if reference_no:  # Only add reference if provided
+                            payment_details.update({
+                                "reference_no": reference_no
+                            })
+                    elif payment_method == "UPI":
+                        if reference_no:  # Only add reference if provided
+                            payment_details["reference_no"] = reference_no
 
                     # Generate receipt number and path
                     receipt_number = generate_receipt_number()
@@ -686,19 +692,19 @@ def show_donation_form():
                 st.info(f"Purpose: {purpose} (as per recurring plan)")
 
             # Payment method
-            payment_method = st.selectbox("Payment Method", ["Cash", "Cheque", "Bank Transfer", "UPI", "Credit Card", "Debit Card"])
+            payment_method = st.selectbox("Payment Method", ["Cash", "Cheque", "Card / Net Banking", "UPI"])
             
             # Additional fields based on payment method
             reference_no = None
             bank_name = None
             
-            if payment_method in ["Cheque", "Bank Transfer"]:
+            if payment_method in ["Cheque", "Card / Net Banking"]:
                 col1, col2 = st.columns(2)
                 with col1:
                     reference_no = st.text_input(f"{payment_method} Number")
                 with col2:
                     bank_name = st.text_input("Bank Name")
-            elif payment_method in ["UPI", "Credit Card", "Debit Card"]:
+            elif payment_method == "UPI":
                 reference_no = st.text_input("Transaction Reference Number")
 
             # Show recurring donation fields if setting up new recurring
@@ -724,7 +730,7 @@ def show_donation_form():
                         "date": date.isoformat()
                     }
 
-                    if payment_method in ["Cheque", "Bank Transfer"]:
+                    if payment_method in ["Cheque", "Card / Net Banking"]:
                         if not reference_no or not bank_name:
                             st.error(f"Please enter both {payment_method} number and bank name")
                             return
@@ -732,7 +738,7 @@ def show_donation_form():
                             "reference_no": reference_no,
                             "bank_name": bank_name
                         })
-                    elif payment_method in ["UPI", "Credit Card", "Debit Card"]:
+                    elif payment_method == "UPI":
                         if not reference_no:
                             st.error("Please enter the transaction reference number")
                             return
