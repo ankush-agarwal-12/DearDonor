@@ -18,6 +18,7 @@ import pandas as pd
 import uuid
 import re
 from dateutil.relativedelta import relativedelta
+import urllib.parse
 
 load_dotenv()
 
@@ -590,6 +591,7 @@ def record_donation_view():
                             st.session_state.last_receipt_path = receipt_path
                             st.session_state.last_receipt_number = receipt_number
                             st.session_state.last_success_message = success_message
+                            st.session_state.last_donation_data = donor_data
                             
                             # Rerun to show the download button outside form
                             st.rerun()
@@ -615,6 +617,33 @@ def record_donation_view():
                 mime="application/pdf",
                 use_container_width=True
             )
+
+            # Add WhatsApp notification button
+            if donor_options[selected_donor].get("Phone"):
+                # Get organization name from settings
+                settings = load_settings()
+                org_name = settings.get('organization', {}).get('name', 'Our Organization')
+                
+                # Get donation data from session state
+                donation_data = st.session_state.last_donation_data
+                
+                # Prepare WhatsApp message
+                message = f"""Thank you for your generous donation to *{org_name}*.\n
+*Amount:* ₹{donation_data['amount']}
+*Date:* {donation_data['date']}
+*Receipt No:* {st.session_state.last_receipt_number}\n
+The donation receipt has been sent to your email: {donor_options[selected_donor].get('Email', '')}.
+_Thank you for supporting us!_ :) """
+                # Sanitize phone number and create WhatsApp URL
+                phone = donor_options[selected_donor]["Phone"].replace("+", "").replace(" ", "")
+                encoded_message = urllib.parse.quote(message)
+                whatsapp_url = f"https://wa.me/{phone}?text={encoded_message}"
+                
+                st.link_button(
+                    label="Notify Donor on WhatsApp",
+                    url=whatsapp_url,
+                    use_container_width=True
+                )
 
 def custom_button(label, is_primary=True):
     """Create a custom styled button"""
@@ -869,6 +898,7 @@ def show_donation_form():
                             st.session_state.last_receipt_path = receipt_path
                             st.session_state.last_receipt_number = receipt_number
                             st.session_state.last_success_message = success_message
+                            st.session_state.last_donation_data = donor_data
                             
                             # Rerun to show the download button outside form
                             st.rerun()
