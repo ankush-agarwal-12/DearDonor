@@ -34,8 +34,7 @@ def donor_info_view():
     if 'donor_type' not in donors_df.columns:
         donors_df['donor_type'] = 'Individual'
     
-    # Search and filter section
-    st.markdown('<p class="section-header">🔍 Search & Filter</p>', unsafe_allow_html=True)
+    
     
     # Create donor options with formatted display names
     donor_options = {}
@@ -43,18 +42,22 @@ def donor_info_view():
         display_name = f"{d['Full Name']} ({d.get('Email', 'No email')})"
         donor_options[display_name] = d
     
+    # Add empty option at the beginning
+    donor_options = {"Select a donor...": None} | donor_options
+    
     selected_donor = st.selectbox(
         "Search and select donor",
         options=list(donor_options.keys()),
+        index=0,  # Set default to first option (empty)
         key="donor_search"
     )
     
     # Filter donors based on search
-    if selected_donor:
+    if selected_donor and selected_donor != "Select a donor...":
         selected_donor_info = donor_options[selected_donor]
         filtered_donors = donors_df[donors_df['Full Name'] == selected_donor_info['Full Name']]
     else:
-        filtered_donors = donors_df
+        filtered_donors = pd.DataFrame([])  # Empty DataFrame if no donor selected
 
     for _, donor in filtered_donors.iterrows():
         

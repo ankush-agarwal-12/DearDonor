@@ -222,12 +222,16 @@ def record_donation_view():
         for d in donors
     }
     
+    # Add empty option at the beginning
+    donor_options = {"Select a donor...": None} | donor_options
+    
     # Donor selection with search
     col1, col2 = st.columns([3, 1])
     with col1:
         selected_donor = st.selectbox(
             "Search and select donor*",
             options=list(donor_options.keys()),
+            index=0,  # Set default to first option (empty)
             help="Type to search by name or email"
         )
     with col2:
@@ -244,7 +248,7 @@ def record_donation_view():
             st.rerun()
         return
     
-    if selected_donor:
+    if selected_donor and selected_donor != "Select a donor...":
         donor_info = donor_options[selected_donor]
         donor_id = donor_options[selected_donor]["id"]
         
