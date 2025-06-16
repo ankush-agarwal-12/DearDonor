@@ -1,5 +1,5 @@
 import streamlit as st
-from modules.supabase_utils import add_donor
+from modules.supabase_utils import add_donor, fetch_donors
 
 def add_donor_view():
     st.title("➕ Add New Donor")
@@ -35,6 +35,13 @@ def add_donor_view():
                 
                 if result:
                     st.success("✅ Donor added successfully!")
+                    # Check for duplicate phone number
+                    if phone:
+                        donors = fetch_donors()
+                        for donor in donors:
+                            if donor["Phone"] == phone and donor["Full Name"] != full_name:
+                                st.warning(f"This number is also registered to : {donor['Full Name']}.")
+                                break
                     # Clear form
                     st.empty()
                 else:
