@@ -204,8 +204,6 @@ def record_donation_view():
     settings = load_settings()
     predefined_purposes = settings.get("donation_purposes", ["General Fund"])
     
-    # 1. Donor Selection Section
-    st.markdown("### 🔍 Select Donor")
     
     # Fetch donors
     donors = fetch_donors()

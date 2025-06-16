@@ -339,8 +339,7 @@ def pdf_settings_page():
                 preview_image.save(preview_image_path, quality=95, dpi=(300, 300))
                 
                 # Zoom control
-                zoom_level = st.slider("Zoom", min_value=50, max_value=150, value=100, step=10, format="%d%%")
-                display_width = int(preview_image.width * (zoom_level / 100))
+                display_width = int(preview_image.width)
                 st.image(preview_image_path, width=display_width)
                 
                 # Clean up
