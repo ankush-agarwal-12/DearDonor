@@ -64,23 +64,63 @@ def donor_info_view():
             col1, col2 = st.columns([3, 2])
             
             with col1:
+                col3, col4 = st.columns([7, 1])
+                with col3:
                 # Contact Information
-                st.markdown("#### 📞 Contact Information")
-                st.markdown(f"**Email:** {donor['Email']}")
-                st.markdown(f"**Phone:** {donor['Phone']}")
-                st.markdown(f"**Address:** {donor['Address']}")
-                if pd.notna(donor.get('PAN')):
-                    st.markdown(f"**PAN:** {donor['PAN']}")
+                    st.markdown("#### 🗂️ Donor Information")
+                with col4:
+                    # Edit Donor Information
+                    if st.button(f"Edit", key=f"edit_{donor['id']}"):
+                        st.session_state.editing_donor = donor['id']
+                        st.session_state.edit_name = donor['Full Name']
+                        st.session_state.edit_email = donor['Email']
+                        st.session_state.edit_phone = donor['Phone']
+                        st.session_state.edit_address = donor['Address']
+                        st.session_state.edit_pan = donor.get('PAN', '')
+                        st.session_state.edit_type = donor.get('donor_type', 'Individual')
 
-                # Edit Donor Information
-                if st.button(f"✏️ Edit {donor['Full Name']}'s Information", key=f"edit_{donor['id']}"):
-                    st.session_state.editing_donor = donor['id']
-                    st.session_state.edit_name = donor['Full Name']
-                    st.session_state.edit_email = donor['Email']
-                    st.session_state.edit_phone = donor['Phone']
-                    st.session_state.edit_address = donor['Address']
-                    st.session_state.edit_pan = donor.get('PAN', '')
-                    st.session_state.edit_type = donor.get('donor_type', 'Individual')
+                # Apply similar card style as Record Donation
+                st.markdown("""
+                    <style>
+                    .donor-card {
+                        background-color: #f1f8e9;
+                        border: 2px solid #2e7d32;
+                        border-radius: 10px;
+                        padding: 20px;
+                        margin: 0 0 20px 0;
+                    }
+                    .donor-name {
+                        font-size: 1.3em;
+                        font-weight: bold;
+                        color: #1b5e20;
+                        margin-bottom: 15px;
+                    }
+                    .donor-field {
+                        margin: 8px 0;
+                        color: #333;
+                    }
+                    .donor-field strong {
+                        color: #2e7d32;
+                        margin-right: 10px;
+                        min-width: 80px;
+                        display: inline-block;
+                    }
+                    </style>
+                """, unsafe_allow_html=True)
+
+
+
+                st.markdown(f"""
+    <div class="donor-card">
+        <div class="donor-name">👤 {donor['Full Name']}</div>
+        <div class="donor-field"><strong>📧 Email</strong>{donor['Email']}</div>
+        <div class="donor-field"><strong>📱 Phone</strong>{donor['Phone']}</div>
+        <div class="donor-field"><strong>🏢 Address</strong>{donor['Address']}</div>
+        <div class="donor-field"><strong>🆔 PAN</strong>{donor['PAN'] if pd.notna(donor.get('PAN')) else 'Not Provided'}</div>
+    </div>
+""", unsafe_allow_html=True)
+
+                
 
             with col2:
                 # Fetch donor's donations
@@ -142,8 +182,8 @@ def donor_info_view():
             new_pan = st.text_input("PAN", st.session_state.edit_pan)
             new_type = st.selectbox(
                 "Donor Type",
-                options=['Individual', 'Organization', 'Trust', 'Other'],
-                index=['Individual', 'Organization', 'Trust', 'Other'].index(st.session_state.edit_type)
+                options=['Individual', 'Company'],
+                index=['Individual', 'Company'].index(st.session_state.edit_type) if st.session_state.edit_type in ['Individual', 'Company'] else 0
             )
 
         col1, col2, col3 = st.columns([1, 1, 2])
