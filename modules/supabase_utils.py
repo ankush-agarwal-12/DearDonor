@@ -438,3 +438,27 @@ def delete_donation(donation_id: str) -> bool:
     except Exception as e:
         print(f"Error deleting donation: {str(e)}")
         return False
+
+def delete_donor(donor_id: str) -> bool:
+    """Delete a donor from the database"""
+    try:
+        # First check if the donor has any donations
+        donations = supabase.table("donations") \
+            .select("id") \
+            .eq("donor_id", donor_id) \
+            .execute()
+            
+        if donations.data:
+            print(f"Error: Cannot delete donor with ID {donor_id} - they have donation history")
+            return False
+        
+        # Delete the donor
+        result = supabase.table("donors") \
+            .delete() \
+            .eq("id", donor_id) \
+            .execute()
+            
+        return bool(result.data)
+    except Exception as e:
+        print(f"Error deleting donor: {str(e)}")
+        return False

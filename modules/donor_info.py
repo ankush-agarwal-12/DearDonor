@@ -1,6 +1,6 @@
 import streamlit as st
 import pandas as pd
-from modules.supabase_utils import fetch_donors, get_donor_donations, update_donor, delete_donation
+from modules.supabase_utils import fetch_donors, get_donor_donations, update_donor, delete_donation, delete_donor
 import zipfile
 from io import BytesIO
 import os
@@ -136,11 +136,37 @@ def donor_info_view():
     </div>
 """, unsafe_allow_html=True)
 
+                # Fetch donor's donations once
+                donations = get_donor_donations(donor['id'])
                 
+                # Delete Donor Section - Only show if no donations exist
+                if not donations:
+                    st.markdown("#### 🗑️ Delete Donor")
+                    st.warning("⚠️ **Warning**: Deleting a donor is permanent and cannot be undone.")
+                    
+                    # Confirmation checkbox
+                    confirm_delete = st.checkbox(
+                        "I understand that this action cannot be undone and I want to delete this donor",
+                        key=f"confirm_delete_{donor['id']}"
+                    )
+                    
+                    if confirm_delete:
+                        col1, col2 = st.columns([1, 3])
+                        with col1:
+                            if st.button("🗑️ Delete Donor", type="secondary", key=f"delete_donor_{donor['id']}"):
+                                # Attempt to delete the donor
+                                if delete_donor(donor['id']):
+                                    st.success("Donor deleted successfully!")
+                                    # Reset the selected donor to default
+                                    st.session_state.selected_donor_display = "Select a donor..."
+                                    st.rerun()
+                                else:
+                                    st.error("Failed to delete donor. They may have donation history that prevents deletion.")
+                        with col2:
+                            st.info("Click the button to permanently delete this donor.")
 
             with col2:
-                # Fetch donor's donations
-                donations = get_donor_donations(donor['id'])
+                # Use the already fetched donations for statistics
                 if donations:
                     donations_df = pd.DataFrame(donations)
                     
@@ -214,6 +240,10 @@ def donor_info_view():
                                     st.error("Failed to delete donation. It may be linked to a recurring plan or already deleted.")
                         with col2:
                             st.info("Click the button to permanently delete this donation.")
+                
+                # If donations exist, show a message explaining why delete is not available
+                if donations:
+                    st.info("💡 **Note**: Delete donor option is not available for donors with donation history to preserve receipt records.")
 
     # Edit Donor Form
     if hasattr(st.session_state, 'editing_donor'):
