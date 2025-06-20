@@ -154,7 +154,7 @@ def donor_info_view():
                     st.markdown(f"**Total Donated:** {format_amount(total_donated)}")
                     st.markdown(f"**Average Donation:** {format_amount(avg_donation)}")
                     st.markdown(f"**Number of Donations:** {num_donations}")
-                    st.markdown(f"**Last Donation:** {pd.to_datetime(last_donation).strftime('%Y-%m-%d')}")
+                    st.markdown(f"**Last Donation:** {pd.to_datetime(last_donation).strftime('%d-%m-%Y')}")
                 else:
                     st.info("No donations recorded yet")
 
@@ -170,7 +170,7 @@ def donor_info_view():
                 # Display as a clean table
                 st.dataframe(
                     history_df[['date', 'Amount', 'payment_method', 'Purpose']].assign(
-                        date=history_df['date'].dt.strftime('%Y-%m-%d'),
+                        date=history_df['date'].dt.strftime('%d-%m-%Y'),
                         Amount=history_df['Amount'].apply(format_amount)
                     ),
                     column_config={
