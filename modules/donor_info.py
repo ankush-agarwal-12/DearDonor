@@ -1,6 +1,6 @@
 import streamlit as st
 import pandas as pd
-from modules.supabase_utils import fetch_donors, get_donor_donations, update_donor
+from modules.supabase_utils import fetch_donors, get_donor_donations, update_donor, delete_donation
 import zipfile
 from io import BytesIO
 import os
@@ -181,6 +181,39 @@ def donor_info_view():
                     },
                     hide_index=True
                 )
+                
+                # Delete Donation Section
+                st.markdown("#### 🗑️ Delete Donation")
+                st.warning("⚠️ **Warning**: Deleting a donation is permanent and cannot be undone.")
+                
+                # Create options for donation deletion
+                if donations:
+                    donation_options = {}
+                    for donation in donations:
+                        donation_date = pd.to_datetime(donation['date']).strftime('%d-%m-%Y')
+                        display_name = f"₹{donation['Amount']:,.2f} on {donation_date} - {donation['Purpose']}"
+                        donation_options[display_name] = donation['id']
+                    
+                    selected_donation_to_delete = st.selectbox(
+                        "Select donation to delete:",
+                        options=["Select a donation..."] + list(donation_options.keys()),
+                        key="delete_donation_select"
+                    )
+                    
+                    if selected_donation_to_delete and selected_donation_to_delete != "Select a donation...":
+                        donation_id_to_delete = donation_options[selected_donation_to_delete]
+                        
+                        col1, col2 = st.columns([1, 3])
+                        with col1:
+                            if st.button("🗑️ Delete Donation", type="secondary"):
+                                # Attempt to delete the donation
+                                if delete_donation(donation_id_to_delete):
+                                    st.success("Donation deleted successfully!")
+                                    st.rerun()
+                                else:
+                                    st.error("Failed to delete donation. It may be linked to a recurring plan or already deleted.")
+                        with col2:
+                            st.info("Click the button to permanently delete this donation.")
 
     # Edit Donor Form
     if hasattr(st.session_state, 'editing_donor'):
