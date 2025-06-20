@@ -45,13 +45,29 @@ def donor_info_view():
     # Add empty option at the beginning
     donor_options = {"Select a donor...": None} | donor_options
     
+    # Initialize selected donor in session state if not exists
+    if 'selected_donor_display' not in st.session_state:
+        st.session_state.selected_donor_display = "Select a donor..."
+    
+    # Find the index of the currently selected donor
+    donor_options_list = list(donor_options.keys())
+    try:
+        current_index = donor_options_list.index(st.session_state.selected_donor_display)
+    except ValueError:
+        # If the selected donor is not found (e.g., after editing), default to first option
+        current_index = 0
+        st.session_state.selected_donor_display = "Select a donor..."
+    
     selected_donor = st.selectbox(
         "Search and select donor",
-        options=list(donor_options.keys()),
-        index=0,  # Set default to first option (empty)
+        options=donor_options_list,
+        index=current_index,
         key="donor_search"
     )
     
+    # Update session state with the selected donor
+    st.session_state.selected_donor_display = selected_donor
+
     # Filter donors based on search
     if selected_donor and selected_donor != "Select a donor...":
         selected_donor_info = donor_options[selected_donor]
@@ -201,6 +217,9 @@ def donor_info_view():
                         "donor_type": new_type
                     }
                 )
+                # Update the selected donor display name in session state
+                new_display_name = f"{new_name} ({new_email})"
+                st.session_state.selected_donor_display = new_display_name
                 del st.session_state.editing_donor
                 st.success("Donor information updated successfully!")
                 st.rerun()
