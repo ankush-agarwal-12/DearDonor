@@ -77,7 +77,7 @@ def data_export_view():
                 
                 # Preview the data
                 st.markdown("### Data Preview")
-                st.dataframe(df.head())
+                st.dataframe(df.head(), hide_index=True)
                 
                 # Import button
                 if st.button("Import Donors"):
@@ -172,7 +172,7 @@ def data_export_view():
         # Display preview with selected fields
         st.markdown("### Preview")
         preview_df = donors_df[include_fields] if include_fields else donors_df
-        st.dataframe(preview_df.head())
+        st.dataframe(preview_df.head(), hide_index=True)
         
         if st.button("Export Donors Data"):
             # Create export directory if it doesn't exist
@@ -328,7 +328,7 @@ def data_export_view():
         # Display preview with selected fields
         st.markdown("### Preview")
         preview_df = filtered_df[include_fields] if include_fields else filtered_df
-        st.dataframe(preview_df.head())
+        st.dataframe(preview_df.head(), hide_index=True)
         
         if st.button("Export Donations Data"):
             # Create export directory if it doesn't exist
@@ -479,7 +479,7 @@ def data_export_view():
         # Display preview with selected fields
         st.markdown("### Preview")
         preview_df = filtered_df[selected_fields] if selected_fields else filtered_df
-        st.dataframe(preview_df.head())
+        st.dataframe(preview_df.head(), hide_index=True)
         
         # Export options
         st.markdown("### Export Options")
