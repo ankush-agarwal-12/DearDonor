@@ -3,7 +3,6 @@ from modules.add_donor import add_donor_view
 from modules.record_donation import record_donation_view
 from modules.donor_info import donor_info_view
 from modules.dashboard import dashboard_view
-from modules.view_receipts import view_receipts_view
 from modules.data_export import data_export_view
 from modules.settings import settings_view
 from modules.supabase_utils import fetch_all_donations, fetch_donors
@@ -106,7 +105,6 @@ st.markdown("""
     
     /* Navigation sections */
     .nav-section {
-        margin-bottom: 1.5rem;
         padding: 0 0.5rem;
     }
     .nav-header {
@@ -115,13 +113,12 @@ st.markdown("""
         font-weight: 600;
         text-transform: uppercase;
         letter-spacing: 0.5px;
-        margin-bottom: 0.75rem;
+        margin-bottom: 0.2rem;
         padding-left: 0.5rem;
     }
     .nav-divider {
         height: 1px;
         background-color: #e9ecef;
-        margin: 1.5rem 0;
     }
     
     /* App version footer */
@@ -246,7 +243,6 @@ core_options = {
     "Record Donation": {"icon": "💰", "tooltip": "Record new donations from donors"},
     "Recurring Donations": {"icon": "🔄", "tooltip": "Manage recurring donation schedules"},
     "Donor Info": {"icon": "👥", "tooltip": "View and manage donor information"},
-    "View Receipts": {"icon": "📄", "tooltip": "Access and manage donation receipts"},
     "Data Export": {"icon": "📤", "tooltip": "Export donation and donor data"}
 }
 
@@ -324,8 +320,6 @@ elif selected == "Recurring Donations":
     recurring_donations_view()
 elif selected == "Donor Info":
     donor_info_view()
-elif selected == "View Receipts":
-    view_receipts_view()
 elif selected == "Data Export":
     data_export_view()
 elif selected == "General Settings":

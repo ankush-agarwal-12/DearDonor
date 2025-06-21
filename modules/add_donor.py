@@ -43,7 +43,7 @@ def add_donor_view():
     
     with st.form("add_donor_form"):
         full_name = st.text_input("Full Name*")
-        phone = st.text_input("Phone Number*", placeholder="e.g., 9876543210 or +91-9876543210")
+        phone = st.text_input("Phone Number*", placeholder="e.g., 9876543210")
         email = st.text_input("Email")
         address = st.text_area("Address")
         pan = st.text_input("PAN Number")

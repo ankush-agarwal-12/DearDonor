@@ -10,6 +10,12 @@ import plotly.express as px
 def format_amount(amount):
     return f"₹{amount:,.2f}"
 
+def format_receipt_no(path):
+    """Formats receipt path to show only the number."""
+    if pd.notna(path) and isinstance(path, str):
+        return os.path.splitext(os.path.basename(path))[0]
+    return 'None'
+
 def get_financial_year_dates():
     """Get current financial year start and end dates (April 1 to March 31)"""
     current_date = datetime.now()
@@ -340,18 +346,59 @@ def donor_info_view():
                 # Display as a clean table
                 if not filtered_history_df.empty:
                     st.dataframe(
-                        filtered_history_df[['date', 'Amount', 'payment_method', 'Purpose']].assign(
+                        filtered_history_df[['date', 'Amount', 'payment_method', 'Purpose', 'receipt_no']].assign(
                             date=filtered_history_df['date'].dt.strftime('%d-%m-%Y'),
-                            Amount=filtered_history_df['Amount'].apply(format_amount)
+                            Amount=filtered_history_df['Amount'].apply(format_amount),
+                            receipt_no=filtered_history_df['receipt_no'].apply(format_receipt_no)
                         ),
                         column_config={
                             "date": "Date",
                             "Amount": "Amount",
                             "payment_method": "Payment Method",
-                            "Purpose": "Purpose"
+                            "Purpose": "Purpose",
+                            "receipt_no": "Receipt No."
                         },
                         hide_index=True
                     )
+
+                    # Prepare data for export once
+                    export_df = filtered_history_df[['date', 'Amount', 'payment_method', 'Purpose', 'receipt_no']].copy()
+                    export_df['date'] = export_df['date'].dt.strftime('%Y-%m-%d')
+                    export_df['receipt_no'] = export_df['receipt_no'].apply(format_receipt_no)
+                    export_df.columns = ['Date', 'Amount', 'Payment Method', 'Purpose', 'Receipt No.']
+
+                    # Export buttons
+                    col1, col2 = st.columns(2)
+
+                    with col1:
+                        # Export to CSV
+                        csv_data = export_df.to_csv(index=False).encode('utf-8')
+                        st.download_button(
+                            label="📥 Export to CSV",
+                            data=csv_data,
+                            file_name=f"donation_history_{donor['Full Name'].replace(' ', '_')}_{date_filter.replace(' ', '_')}.csv",
+                            mime='text/csv',
+                            key=f"export_csv_{donor['id']}"
+                        )
+
+                    with col2:
+                        # Export to Excel
+                        output = BytesIO()
+                        with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+                            export_df.to_excel(writer, index=False, sheet_name='Donations')
+                            # Autofit columns for better readability
+                            for i, col in enumerate(export_df.columns):
+                                column_len = max(export_df[col].astype(str).map(len).max(), len(col)) + 2
+                                writer.sheets['Donations'].set_column(i, i, column_len)
+                        
+                        excel_data = output.getvalue()
+                        st.download_button(
+                            label="📊 Export to Excel",
+                            data=excel_data,
+                            file_name=f"donation_history_{donor['Full Name'].replace(' ', '_')}_{date_filter.replace(' ', '_')}.xlsx",
+                            mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                            key=f"export_excel_{donor['id']}"
+                        )
                     
                     # Show filtered statistics
                     if date_filter != "All Time":
