@@ -200,6 +200,54 @@ def donor_info_view():
     </div>
 """, unsafe_allow_html=True)
 
+                # Edit Donor Form - Show immediately after donor card if editing
+                if hasattr(st.session_state, 'editing_donor') and st.session_state.editing_donor == donor['id']:
+                    st.markdown("### ✏️ Edit Donor Information")
+                    
+                    edit_col1, edit_col2 = st.columns(2)
+                    
+                    with edit_col1:
+                        new_name = st.text_input("Full Name", st.session_state.edit_name, key=f"edit_name_{donor['id']}")
+                        new_email = st.text_input("Email", st.session_state.edit_email, key=f"edit_email_{donor['id']}")
+                        new_phone = st.text_input("Phone", st.session_state.edit_phone, key=f"edit_phone_{donor['id']}")
+                    
+                    with edit_col2:
+                        new_address = st.text_area("Address", st.session_state.edit_address, key=f"edit_address_{donor['id']}")
+                        new_pan = st.text_input("PAN", st.session_state.edit_pan, key=f"edit_pan_{donor['id']}")
+                        new_type = st.selectbox(
+                            "Donor Type",
+                            options=['Individual', 'Company'],
+                            index=['Individual', 'Company'].index(st.session_state.edit_type) if st.session_state.edit_type in ['Individual', 'Company'] else 0,
+                            key=f"edit_type_{donor['id']}"
+                        )
+
+                    col1, col2, col3 = st.columns([1, 1, 2])
+                    with col1:
+                        if st.button("💾 Save Changes", key=f"save_{donor['id']}"):
+                            # Update donor information
+                            update_donor(
+                                st.session_state.editing_donor,
+                                {
+                                    "full_name": new_name,
+                                    "email": new_email,
+                                    "phone": new_phone,
+                                    "address": new_address,
+                                    "pan": new_pan,
+                                    "donor_type": new_type
+                                }
+                            )
+                            # Update the selected donor display name in session state
+                            new_display_name = f"{new_name} ({new_email})"
+                            st.session_state.selected_donor_display = new_display_name
+                            del st.session_state.editing_donor
+                            st.success("Donor information updated successfully!")
+                            st.rerun()
+                    
+                    with col2:
+                        if st.button("❌ Cancel", key=f"cancel_{donor['id']}"):
+                            del st.session_state.editing_donor
+                            st.rerun()
+
                 # Fetch donor's donations once
                 donations = get_donor_donations(donor['id'])
                 
@@ -348,50 +396,3 @@ def donor_info_view():
                             st.info("Click the button to permanently delete this donation.")
                 else:
                     st.info("No donations available for deletion with the current filter.")
-
-    # Edit Donor Form
-    if hasattr(st.session_state, 'editing_donor'):
-        st.markdown("### ✏️ Edit Donor Information")
-        
-        edit_col1, edit_col2 = st.columns(2)
-        
-        with edit_col1:
-            new_name = st.text_input("Full Name", st.session_state.edit_name)
-            new_email = st.text_input("Email", st.session_state.edit_email)
-            new_phone = st.text_input("Phone", st.session_state.edit_phone)
-        
-        with edit_col2:
-            new_address = st.text_area("Address", st.session_state.edit_address)
-            new_pan = st.text_input("PAN", st.session_state.edit_pan)
-            new_type = st.selectbox(
-                "Donor Type",
-                options=['Individual', 'Company'],
-                index=['Individual', 'Company'].index(st.session_state.edit_type) if st.session_state.edit_type in ['Individual', 'Company'] else 0
-            )
-
-        col1, col2, col3 = st.columns([1, 1, 2])
-        with col1:
-            if st.button("💾 Save Changes"):
-                # Update donor information
-                update_donor(
-                    st.session_state.editing_donor,
-                    {
-                        "full_name": new_name,
-                        "email": new_email,
-                        "phone": new_phone,
-                        "address": new_address,
-                        "pan": new_pan,
-                        "donor_type": new_type
-                    }
-                )
-                # Update the selected donor display name in session state
-                new_display_name = f"{new_name} ({new_email})"
-                st.session_state.selected_donor_display = new_display_name
-                del st.session_state.editing_donor
-                st.success("Donor information updated successfully!")
-                st.rerun()
-        
-        with col2:
-            if st.button("❌ Cancel"):
-                del st.session_state.editing_donor
-                st.rerun()
