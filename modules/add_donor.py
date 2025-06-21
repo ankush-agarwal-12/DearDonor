@@ -6,8 +6,8 @@ def add_donor_view():
     
     with st.form("add_donor_form"):
         full_name = st.text_input("Full Name*")
-        email = st.text_input("Email*")
-        phone = st.text_input("Phone Number")
+        phone = st.text_input("Phone Number*")
+        email = st.text_input("Email")
         address = st.text_area("Address")
         pan = st.text_input("PAN Number")
         donor_type = st.selectbox(
@@ -19,15 +19,15 @@ def add_donor_view():
         submitted = st.form_submit_button("Add Donor")
         
         if submitted:
-            if not full_name or not email:
-                st.error("Please fill in all required fields marked with *")
+            if not full_name or not phone:
+                st.error("Please fill in the required field marked with *")
                 return
                 
             try:
                 result = add_donor(
                     full_name=full_name,
-                    email=email,
                     phone=phone,
+                    email=email,
                     address=address,
                     pan=pan,
                     donor_type=donor_type
