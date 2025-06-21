@@ -4,11 +4,75 @@ from modules.supabase_utils import fetch_donors, get_donor_donations, update_don
 import zipfile
 from io import BytesIO
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 import plotly.express as px
 
 def format_amount(amount):
     return f"₹{amount:,.2f}"
+
+def get_financial_year_dates():
+    """Get current financial year start and end dates (April 1 to March 31)"""
+    current_date = datetime.now()
+    if current_date.month >= 4:
+        # Current financial year started in April of current year
+        fy_start = datetime(current_date.year, 4, 1)
+        fy_end = datetime(current_date.year + 1, 3, 31)
+    else:
+        # Current financial year started in April of previous year
+        fy_start = datetime(current_date.year - 1, 4, 1)
+        fy_end = datetime(current_date.year, 3, 31)
+    return fy_start, fy_end
+
+def filter_donations_by_date_range(donations_df, date_filter, custom_start=None, custom_end=None):
+    """Filter donations based on selected date range"""
+    if date_filter == "All Time":
+        return donations_df
+    
+    # Convert date column to datetime if not already
+    donations_df['date'] = pd.to_datetime(donations_df['date'])
+    
+    if date_filter == "This Month":
+        current_date = datetime.now()
+        start_date = datetime(current_date.year, current_date.month, 1)
+        end_date = (start_date + timedelta(days=32)).replace(day=1) - timedelta(days=1)
+    
+    elif date_filter == "Last Month":
+        current_date = datetime.now()
+        if current_date.month == 1:
+            start_date = datetime(current_date.year - 1, 12, 1)
+        else:
+            start_date = datetime(current_date.year, current_date.month - 1, 1)
+        end_date = datetime(current_date.year, current_date.month, 1) - timedelta(days=1)
+    
+    elif date_filter == "This Financial Year":
+        start_date, end_date = get_financial_year_dates()
+    
+    elif date_filter == "Last Financial Year":
+        current_date = datetime.now()
+        if current_date.month >= 4:
+            start_date = datetime(current_date.year - 1, 4, 1)
+            end_date = datetime(current_date.year, 3, 31)
+        else:
+            start_date = datetime(current_date.year - 2, 4, 1)
+            end_date = datetime(current_date.year - 1, 3, 31)
+    
+    elif date_filter == "Custom Range":
+        if custom_start and custom_end:
+            start_date = pd.to_datetime(custom_start)
+            end_date = pd.to_datetime(custom_end)
+        else:
+            return donations_df
+    
+    else:
+        return donations_df
+    
+    # Filter donations within the date range
+    filtered_df = donations_df[
+        (donations_df['date'] >= start_date) & 
+        (donations_df['date'] <= end_date)
+    ]
+    
+    return filtered_df
 
 def donor_info_view():
     # Header with icon and title
@@ -188,35 +252,77 @@ def donor_info_view():
             if donations:
                 st.markdown("#### 📜 Donation History")
                 
+                # Date Range Filter
+                st.markdown("**Filter by Date Range:**")
+                col1, col2 = st.columns([2, 2])
+                
+                with col1:
+                    date_filter = st.selectbox(
+                        "Select Date Range",
+                        ["All Time", "This Month", "Last Month", "This Financial Year", "Last Financial Year", "Custom Range"],
+                        key="date_filter"
+                    )
+                
+                with col2:
+                    if date_filter == "Custom Range":
+                        custom_start = st.date_input("Start Date", key="custom_start")
+                        custom_end = st.date_input("End Date", key="custom_end")
+                    else:
+                        custom_start = None
+                        custom_end = None
+                
                 # Create donation history table
                 history_df = pd.DataFrame(donations)
                 history_df['date'] = pd.to_datetime(history_df['date'])
-                history_df = history_df.sort_values('date', ascending=False)
+                
+                # Apply date filter
+                filtered_history_df = filter_donations_by_date_range(
+                    history_df, date_filter, custom_start, custom_end
+                )
+                
+                # Sort by date (most recent first)
+                filtered_history_df = filtered_history_df.sort_values('date', ascending=False)
+                
+                # Show filter summary
+                if date_filter != "All Time":
+                    st.info(f"📅 Showing donations for: **{date_filter}**")
+                    if len(filtered_history_df) != len(history_df):
+                        st.info(f"Displaying {len(filtered_history_df)} of {len(history_df)} total donations")
                 
                 # Display as a clean table
-                st.dataframe(
-                    history_df[['date', 'Amount', 'payment_method', 'Purpose']].assign(
-                        date=history_df['date'].dt.strftime('%d-%m-%Y'),
-                        Amount=history_df['Amount'].apply(format_amount)
-                    ),
-                    column_config={
-                        "date": "Date",
-                        "Amount": "Amount",
-                        "payment_method": "Payment Method",
-                        "Purpose": "Purpose"
-                    },
-                    hide_index=True
-                )
+                if not filtered_history_df.empty:
+                    st.dataframe(
+                        filtered_history_df[['date', 'Amount', 'payment_method', 'Purpose']].assign(
+                            date=filtered_history_df['date'].dt.strftime('%d-%m-%Y'),
+                            Amount=filtered_history_df['Amount'].apply(format_amount)
+                        ),
+                        column_config={
+                            "date": "Date",
+                            "Amount": "Amount",
+                            "payment_method": "Payment Method",
+                            "Purpose": "Purpose"
+                        },
+                        hide_index=True
+                    )
+                    
+                    # Show filtered statistics
+                    if date_filter != "All Time":
+                        filtered_total = filtered_history_df['Amount'].sum()
+                        filtered_avg = filtered_history_df['Amount'].mean()
+                        st.markdown(f"**Filtered Total:** {format_amount(filtered_total)}")
+                        st.markdown(f"**Filtered Average:** {format_amount(filtered_avg)}")
+                else:
+                    st.info(f"No donations found for the selected date range: {date_filter}")
                 
                 # Delete Donation Section
                 st.markdown("#### 🗑️ Delete Donation")
                 st.warning("⚠️ **Warning**: Deleting a donation is permanent and cannot be undone.")
                 
-                # Create options for donation deletion
-                if donations:
+                # Create options for donation deletion (use filtered donations for selection)
+                if not filtered_history_df.empty:
                     donation_options = {}
-                    for donation in donations:
-                        donation_date = pd.to_datetime(donation['date']).strftime('%d-%m-%Y')
+                    for _, donation in filtered_history_df.iterrows():
+                        donation_date = donation['date'].strftime('%d-%m-%Y')
                         display_name = f"₹{donation['Amount']:,.2f} on {donation_date} - {donation['Purpose']}"
                         donation_options[display_name] = donation['id']
                     
@@ -240,10 +346,8 @@ def donor_info_view():
                                     st.error("Failed to delete donation. It may be linked to a recurring plan or already deleted.")
                         with col2:
                             st.info("Click the button to permanently delete this donation.")
-                
-                # If donations exist, show a message explaining why delete is not available
-                if donations:
-                    st.info("💡 **Note**: Delete donor option is not available for donors with donation history to preserve receipt records.")
+                else:
+                    st.info("No donations available for deletion with the current filter.")
 
     # Edit Donor Form
     if hasattr(st.session_state, 'editing_donor'):
