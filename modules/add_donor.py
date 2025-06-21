@@ -35,7 +35,7 @@ def format_phone_number(phone):
     """Format phone number to standard Indian format (+91-XXXXXXXXXX)"""
     is_valid, cleaned_phone = validate_phone_number(phone)
     if is_valid:
-        return f"+91-{cleaned_phone}"
+        return f"{cleaned_phone}"
     return phone
 
 def add_donor_view():
