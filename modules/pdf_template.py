@@ -11,11 +11,12 @@ from io import BytesIO
 import os
 from dotenv import load_dotenv
 import json
-from PIL import Image
 import io
 from num2words import num2words
 from datetime import datetime
 from reportlab.lib.units import inch
+from modules.supabase_utils import get_organization_settings, get_organization_asset_path
+from PIL import Image
 
 load_dotenv()
 
@@ -66,19 +67,43 @@ class DonationReceipt:
         top_margin = self.height - self.margin
         current_y = top_margin
         
-        # Add logo
+        # Add logo if available
         try:
-            logo_path = "assets/logo.png"
-            if os.path.exists(logo_path):
-                logo_width = 1.2 * inch
-                logo_height = 1.2 * inch
-                c.drawImage(logo_path, left_margin, current_y - logo_height + 0.2*inch, 
-                          width=logo_width, height=logo_height, preserveAspectRatio=True)
-                logo_space = 1.5 * inch
+            # Use organization-specific logo path
+            if hasattr(self, 'organization_id'):
+                logo_path = get_organization_asset_path(self.organization_id, 'logo')
             else:
-                logo_space = 0
-        except:
-            logo_space = 0
+                logo_path = "assets/logo.png"  # Fallback
+                
+            if os.path.exists(logo_path):
+                # Handle PNG transparency properly
+                from PIL import Image as PILImage
+                pil_image = PILImage.open(logo_path)
+                
+                # Convert to RGBA to handle transparency
+                if pil_image.mode != 'RGBA':
+                    pil_image = pil_image.convert('RGBA')
+                
+                # Create a white background and paste the image with transparency
+                background = PILImage.new('RGBA', pil_image.size, (255, 255, 255, 0))
+                final_image = PILImage.alpha_composite(background, pil_image)
+                
+                # Convert back to RGB for PDF
+                final_image = final_image.convert('RGB')
+                
+                # Save to BytesIO buffer
+                from io import BytesIO
+                logo_buffer = BytesIO()
+                final_image.save(logo_buffer, format='PNG')
+                logo_buffer.seek(0)
+                
+                logo_width = 1.5 * inch
+                logo_height = 1.5 * inch
+                c.drawImage(ImageReader(logo_buffer), left_margin, current_y - logo_height, 
+                          width=logo_width, height=logo_height, preserveAspectRatio=True)
+        except Exception as e:
+            print(f"Logo error: {e}")
+            pass
         
         # Calculate center position
         center_x = self.width / 2
@@ -212,12 +237,38 @@ class DonationReceipt:
         
         # Add signature if available
         try:
-            signature_path = "assets/signature.png"
+            # Use organization-specific signature path
+            if hasattr(self, 'organization_id'):
+                signature_path = get_organization_asset_path(self.organization_id, 'signature')
+            else:
+                signature_path = "assets/signature.png"  # Fallback
+                
             if os.path.exists(signature_path):
+                # Handle PNG transparency properly
+                from PIL import Image as PILImage
+                pil_image = PILImage.open(signature_path)
+                
+                # Convert to RGBA to handle transparency
+                if pil_image.mode != 'RGBA':
+                    pil_image = pil_image.convert('RGBA')
+                
+                # Create a white background and paste the image with transparency
+                background = PILImage.new('RGBA', pil_image.size, (255, 255, 255, 0))
+                final_image = PILImage.alpha_composite(background, pil_image)
+                
+                # Convert back to RGB for PDF
+                final_image = final_image.convert('RGB')
+                
+                # Save to BytesIO buffer
+                from io import BytesIO
+                sig_buffer = BytesIO()
+                final_image.save(sig_buffer, format='PNG')
+                sig_buffer.seek(0)
+                
                 current_y -= 60
                 sig_width = 1.5 * inch
                 sig_height = 0.75 * inch
-                c.drawImage(signature_path, left_margin, current_y, 
+                c.drawImage(ImageReader(sig_buffer), left_margin, current_y, 
                           width=sig_width, height=sig_height, preserveAspectRatio=True)
         except:
             current_y -= 40
@@ -231,82 +282,131 @@ class DonationReceipt:
         
         c.save()
 
-def generate_receipt(donor_data, output_path):
+def generate_receipt(donor_data, output_path, organization_id=None):
     """Generate a donation receipt PDF"""
-    # Load organization settings
-    try:
-        with open('config/settings.json', 'r') as f:
-            settings = json.load(f)
-            org_settings = settings.get('organization', {})
-            
-            # Ensure signature holder info is included
-            if 'signature_holder' not in org_settings:
-                org_settings['signature_holder'] = DEFAULT_RECEIPT_SETTINGS['signature_holder']
+    # Load organization settings from database
+    if organization_id:
+        org_settings = get_organization_settings(organization_id)
+        # Get the organization part of settings
+        org_data = org_settings.get('organization', {})
+        
+        # Ensure signature holder info is included
+        if not org_data.get('signature_holder'):
+            org_data['signature_holder'] = DEFAULT_RECEIPT_SETTINGS['signature_holder']
+    else:
+        # Fallback to JSON file for backward compatibility
+        try:
+            with open('config/settings.json', 'r') as f:
+                settings = json.load(f)
+                org_data = settings.get('organization', {})
                 
-            if not org_settings:
-                org_settings = DEFAULT_RECEIPT_SETTINGS
-    except:
-        org_settings = DEFAULT_RECEIPT_SETTINGS
+                # Ensure signature holder info is included
+                if 'signature_holder' not in org_data:
+                    org_data['signature_holder'] = DEFAULT_RECEIPT_SETTINGS['signature_holder']
+                    
+                if not org_data:
+                    org_data = DEFAULT_RECEIPT_SETTINGS
+        except:
+            org_data = DEFAULT_RECEIPT_SETTINGS
     
-    # Create receipt
-    receipt = DonationReceipt(donor_data, org_settings)
+    # Create receipt with organization ID for asset paths
+    receipt = DonationReceipt(donor_data, org_data)
+    if organization_id:
+        receipt.organization_id = organization_id
     receipt.generate(output_path)
 
 def pdf_settings_page():
     st.markdown("## 📄 PDF Template Settings")
     
+    # Get organization_id from session state
+    if 'organization' not in st.session_state:
+        st.error("❌ Organization not found. Please login again.")
+        return
+    
+    organization_id = st.session_state.organization['id']
+    
+    # Load organization settings
+    try:
+        from modules.supabase_utils import get_organization_settings
+        org_settings = get_organization_settings(organization_id)
+        org_data = org_settings.get('organization', {})
+    except Exception as e:
+        st.error(f"❌ Failed to load organization settings: {str(e)}")
+        return
+    
+    # Initialize upload session states
+    if 'logo_upload_key' not in st.session_state:
+        st.session_state.logo_upload_key = 0
+    if 'signature_upload_key' not in st.session_state:
+        st.session_state.signature_upload_key = 0
+    
     # File upload section
-    st.markdown("### 📁 Upload Assets")
+    st.markdown("### 📁 Organization Assets")
     
     # Logo upload
     st.markdown("#### Organization Logo")
     logo_col1, logo_col2 = st.columns([2, 1])
     with logo_col1:
-        uploaded_logo = st.file_uploader("Upload your organization logo (PNG or JPG)", type=['png', 'jpg', 'jpeg'])
+        uploaded_logo = st.file_uploader(
+            "Upload your organization logo (PNG or JPG)", 
+            type=['png', 'jpg', 'jpeg'],
+            key=f"logo_uploader_{st.session_state.logo_upload_key}"
+        )
         if uploaded_logo:
             try:
-                # Save the uploaded logo
+                # Save the uploaded logo to organization-specific path
                 logo_image = Image.open(uploaded_logo)
-                os.makedirs("assets", exist_ok=True)
-                logo_image.save("assets/logo.png")
+                # Convert to RGBA if it's PNG to preserve transparency
+                if uploaded_logo.type == "image/png":
+                    logo_image = logo_image.convert("RGBA")
+                else:
+                    logo_image = logo_image.convert("RGB")
+                logo_path = get_organization_asset_path(organization_id, 'logo')
+                logo_image.save(logo_path)
                 st.success("✅ Logo uploaded successfully!")
+                # Update key to clear the uploader
+                st.session_state.logo_upload_key += 1
+                st.rerun()  # Refresh to show new logo
             except Exception as e:
                 st.error(f"❌ Failed to save logo: {str(e)}")
     with logo_col2:
-        if os.path.exists("assets/logo.png"):
-            st.image("assets/logo.png", caption="Current Logo", width=150)
+        logo_path = get_organization_asset_path(organization_id, 'logo')
+        if os.path.exists(logo_path):
+            st.image(logo_path, caption="Current Logo", width=150)
     
     # Signature upload
     st.markdown("#### Digital Signature")
     sig_col1, sig_col2 = st.columns([2, 1])
     with sig_col1:
-        uploaded_signature = st.file_uploader("Upload your digital signature (PNG with transparent background)", type=['png'])
+        uploaded_signature = st.file_uploader(
+            "Upload your digital signature (PNG with transparent background)", 
+            type=['png'],
+            key=f"signature_uploader_{st.session_state.signature_upload_key}"
+        )
         if uploaded_signature:
             try:
-                # Save the uploaded signature
+                # Save the uploaded signature to organization-specific path
                 sig_image = Image.open(uploaded_signature)
-                os.makedirs("assets", exist_ok=True)
-                sig_image.save("assets/signature.png")
+                # Convert to RGBA to preserve transparency
+                sig_image = sig_image.convert("RGBA")
+                signature_path = get_organization_asset_path(organization_id, 'signature')
+                sig_image.save(signature_path)
                 st.success("✅ Signature uploaded successfully!")
+                # Update key to clear the uploader
+                st.session_state.signature_upload_key += 1
+                st.rerun()  # Refresh to show new signature
             except Exception as e:
                 st.error(f"❌ Failed to save signature: {str(e)}")
     with sig_col2:
-        if os.path.exists("assets/signature.png"):
-            st.image("assets/signature.png", caption="Current Signature", width=150)
+        signature_path = get_organization_asset_path(organization_id, 'signature')
+        if os.path.exists(signature_path):
+            st.image(signature_path, caption="Current Signature", width=150)
 
     # Preview section
     st.markdown("### 👀 Receipt Preview")
     st.markdown("This is how your donation receipt will look with the current settings.")
     
-    # Load organization settings
-    try:
-        with open('config/settings.json', 'r') as f:
-            settings = json.load(f)
-            org_settings = settings.get('organization', {})
-    except:
-        org_settings = {}
-    
-    if org_settings:
+    if org_data.get('name'):
         # Create a sample receipt for preview
         sample_data = {
             "name": "John Doe",
@@ -319,10 +419,13 @@ def pdf_settings_page():
         }
         
         # Generate preview receipt
-        preview_path = "assets/receipt_preview.pdf"
+        preview_dir = f"uploads/organizations/{organization_id}/assets"
+        os.makedirs(preview_dir, exist_ok=True)
+        preview_path = os.path.join(preview_dir, "receipt_preview.pdf")
+        
         try:
-            receipt = DonationReceipt(sample_data, org_settings)
-            receipt.generate(preview_path)
+            # Generate receipt with organization-specific settings
+            generate_receipt(sample_data, preview_path, organization_id=organization_id)
             
             # Convert first page of PDF to image for preview
             try:
@@ -335,18 +438,19 @@ def pdf_settings_page():
                 preview_image = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
                 
                 # Save and display preview image
-                preview_image_path = "assets/receipt_preview.png"
+                preview_image_path = os.path.join(preview_dir, "receipt_preview.png")
                 preview_image.save(preview_image_path, quality=95, dpi=(300, 300))
                 
-                # Zoom control
-                display_width = int(preview_image.width)
-                st.image(preview_image_path, width=display_width)
+                # Display preview image
+                st.image(preview_image_path, width=600)
                 
                 # Clean up
                 doc.close()
                 os.remove(preview_path)
             except ImportError:
                 st.info("📝 Preview not available. Install PyMuPDF for preview functionality.")
+            except Exception as e:
+                st.error(f"❌ Failed to generate preview: {str(e)}")
         except Exception as e:
             st.error(f"❌ Failed to generate preview: {str(e)}")
     else:

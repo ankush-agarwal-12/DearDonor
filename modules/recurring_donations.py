@@ -86,9 +86,16 @@ def recurring_donations_view():
         st.session_state.show_cancel_confirm = False
         st.session_state.donations_to_cancel = []
     
+    # Get organization_id from session state
+    if 'organization' not in st.session_state:
+        st.error("❌ Organization not found. Please login again.")
+        return
+    
+    organization_id = st.session_state.organization['id']
+    
     # Fetch data
-    donations = fetch_all_donations()
-    donors = fetch_donors()
+    donations = fetch_all_donations(organization_id=organization_id)
+    donors = fetch_donors(organization_id=organization_id)
     
     if not donations:
         st.warning("No donation records found.")
@@ -181,7 +188,7 @@ def recurring_donations_view():
             
             with col2:
                 if st.button("⏸️ Pause Selected", use_container_width=True):
-                    if bulk_update_recurring_status(selected_overdue_ids, "Paused"):
+                    if bulk_update_recurring_status(selected_overdue_ids, "Paused", organization_id=organization_id):
                         st.success(f"Successfully paused {len(selected_overdue_ids)} recurring donation(s)")
                         st.rerun()
                     else:
@@ -422,7 +429,7 @@ def recurring_donations_view():
                         if df[df['id'] == id]['Status'].iloc[0] == 'Active'
                     ]
                     if active_ids:
-                        if bulk_update_recurring_status(active_ids, "Paused"):
+                        if bulk_update_recurring_status(active_ids, "Paused", organization_id=organization_id):
                             st.success(f"Successfully paused {len(active_ids)} recurring donation(s)")
                             st.rerun()
                         else:
@@ -441,11 +448,11 @@ def recurring_donations_view():
                         if df[df['id'] == id]['Status'].iloc[0] == 'Paused'
                     ]
                     if paused_ids:
-                        if bulk_update_recurring_status(paused_ids, "Active"):
-                            st.success(f"Successfully unpaused {len(paused_ids)} recurring donation(s)")
+                        if bulk_update_recurring_status(paused_ids, "Active", organization_id=organization_id):
+                            st.success(f"Successfully reactivated {len(paused_ids)} recurring donation(s)")
                             st.rerun()
                         else:
-                            st.error("Failed to unpause some donations")
+                            st.error("Failed to reactivate some donations")
                     else:
                         st.warning("No paused donations selected")
                 else:
@@ -473,7 +480,7 @@ def recurring_donations_view():
             confirm_col1, confirm_col2 = st.columns(2)
             with confirm_col1:
                 if st.button("✅ Yes, Cancel Donations", type="primary", use_container_width=True):
-                    if bulk_update_recurring_status(st.session_state.donations_to_cancel, "Cancelled"):
+                    if bulk_update_recurring_status(st.session_state.donations_to_cancel, "Cancelled", organization_id=organization_id):
                         st.success(f"Successfully cancelled {len(st.session_state.donations_to_cancel)} recurring donation(s)")
                         # Reset confirmation state
                         st.session_state.show_cancel_confirm = False

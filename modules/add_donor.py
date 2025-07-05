@@ -41,6 +41,13 @@ def format_phone_number(phone):
 def add_donor_view():
     st.title("➕ Add New Donor")
     
+    # Get organization_id from session state
+    if 'organization' not in st.session_state:
+        st.error("❌ Organization not found. Please login again.")
+        return
+    
+    organization_id = st.session_state.organization['id']
+    
     with st.form("add_donor_form"):
         full_name = st.text_input("Full Name*")
         phone = st.text_input("Phone Number*", placeholder="e.g., 9876543210")
@@ -77,14 +84,15 @@ def add_donor_view():
                     email=email,
                     address=address,
                     pan=pan,
-                    donor_type=donor_type
+                    donor_type=donor_type,
+                    organization_id=organization_id
                 )
                 
                 if result:
                     st.success("✅ Donor added successfully!")
                     # Check for duplicate phone number
                     if formatted_phone:
-                        donors = fetch_donors()
+                        donors = fetch_donors(organization_id=organization_id)
                         for donor in donors:
                             if donor["Phone"] == formatted_phone and donor["Full Name"] != full_name:
                                 st.warning(f"This number is also registered to: {donor['Full Name']}.")

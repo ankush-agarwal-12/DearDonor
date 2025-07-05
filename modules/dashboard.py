@@ -269,9 +269,16 @@ def dashboard_view():
     else:
         start_date, end_date = get_date_range(time_range)
 
+    # Get organization_id from session state
+    if 'organization' not in st.session_state:
+        st.error("❌ Organization not found. Please login again.")
+        return
+    
+    organization_id = st.session_state.organization['id']
+    
     # Fetch and process data
-    donations = fetch_all_donations()
-    donors = fetch_donors()
+    donations = fetch_all_donations(organization_id=organization_id)
+    donors = fetch_donors(organization_id=organization_id)
     
     if not donations or not donors:
         st.warning("No data available. Start by adding donors and recording donations.")

@@ -11,12 +11,19 @@ from io import BytesIO
 def data_export_view():
     st.title("📊 Data Import/Export")
     
+    # Get organization_id from session state
+    if 'organization' not in st.session_state:
+        st.error("❌ Organization not found. Please login again.")
+        return
+    
+    organization_id = st.session_state.organization['id']
+    
     # Create tabs for different options
     import_tab, donors_tab, donations_tab, custom_tab = st.tabs(["Import Data", "Export Donors", "Export Donations", "Custom Export"])
     
     # Fetch all data
-    donations = fetch_all_donations()
-    donors = fetch_donors()
+    donations = fetch_all_donations(organization_id=organization_id)
+    donors = fetch_donors(organization_id=organization_id)
     
     # Create donor ID to name mapping
     donor_map = {d["id"]: d["Full Name"] for d in donors}

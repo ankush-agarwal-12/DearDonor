@@ -2,6 +2,10 @@ import streamlit as st
 import json
 import os
 from datetime import datetime
+from modules.supabase_utils import get_organization_settings, save_organization_settings, get_organization_asset_path
+from modules.pdf_template import pdf_settings_page
+from modules.email_template import email_settings_page
+from modules.auth import OrganizationAuth
 
 SETTINGS_FILE = "config/settings.json"
 
@@ -48,7 +52,7 @@ def ensure_settings_file():
     return load_settings()
 
 def load_settings():
-    """Load settings from file and ensure all required structures exist"""
+    """Load settings from file and ensure all required structures exist - DEPRECATED: Use load_org_settings instead"""
     try:
         with open(SETTINGS_FILE, 'r') as f:
             settings = json.load(f)
@@ -75,23 +79,54 @@ def load_settings():
         return ensure_settings_file()
 
 def save_settings(settings):
-    """Save settings to file"""
+    """Save settings to file - DEPRECATED: Use save_org_settings instead"""
     os.makedirs(os.path.dirname(SETTINGS_FILE), exist_ok=True)
     with open(SETTINGS_FILE, 'w') as f:
         json.dump(settings, f, indent=4)
 
+def load_org_settings(organization_id: str = None):
+    """Load organization-specific settings from database"""
+    if not organization_id:
+        # Try to get from session state
+        if 'organization' in st.session_state:
+            organization_id = st.session_state.organization['id']
+        else:
+            return DEFAULT_SETTINGS
+    
+    return get_organization_settings(organization_id)
+
+def save_org_settings(settings: dict, organization_id: str = None):
+    """Save organization-specific settings to database"""
+    if not organization_id:
+        # Try to get from session state
+        if 'organization' in st.session_state:
+            organization_id = st.session_state.organization['id']
+        else:
+            return False
+    
+    return save_organization_settings(organization_id, settings)
+
 def settings_view():
     st.title("⚙️ Settings")
     
-    # Load current settings
-    settings = load_settings()
+    # Get organization_id from session state
+    if 'organization' not in st.session_state:
+        st.error("❌ Organization not found. Please login again.")
+        return
+    
+    organization_id = st.session_state.organization['id']
+    
+    # Load current settings from database
+    settings = load_org_settings(organization_id)
     
     # Create tabs for different settings
-    general_tab, receipt_tab, signature_tab, purposes_tab = st.tabs([
+    general_tab, receipt_tab, signature_tab, purposes_tab, pdf_tab, email_tab = st.tabs([
         "📝 General Information", 
         "🧾 Receipt Format",
         "✍️ Signature Settings",
-        "🎯 Donation Purposes"
+        "🎯 Donation Purposes",
+        "📄 PDF Template",
+        "✉️ Email Settings"
     ])
     
     with general_tab:
@@ -202,8 +237,34 @@ def settings_view():
                 "signature_holder": settings.get('organization', {}).get('signature_holder', DEFAULT_SETTINGS['organization']['signature_holder'])
 
             }
-            save_settings(settings)
-            st.success("✅ Organization information saved successfully!")
+            if save_org_settings(settings, organization_id):
+                st.success("✅ Organization information saved successfully!")
+            else:
+                st.error("❌ Failed to save organization information.")
+        
+        st.markdown("---")
+        
+        # Password change section
+        st.subheader("🔐 Change Password")
+        st.markdown("Update your organization account password")
+        
+        with st.form("change_password_form"):
+            current_pwd = st.text_input("Current Password", type="password")
+            new_pwd = st.text_input("New Password", type="password")
+            confirm_pwd = st.text_input("Confirm New Password", type="password")
+            
+            if st.form_submit_button("🔄 Change Password"):
+                if not current_pwd or not new_pwd:
+                    st.error("Please fill in all password fields")
+                elif new_pwd != confirm_pwd:
+                    st.error("New passwords don't match")
+                else:
+                    auth = OrganizationAuth()
+                    success, message = auth.change_password(organization_id, current_pwd, new_pwd)
+                    if success:
+                        st.success(f"✅ {message}")
+                    else:
+                        st.error(f"❌ {message}")
     
     with receipt_tab:
         st.header("Receipt Number Format")
@@ -249,8 +310,10 @@ def settings_view():
                 "format": receipt_format,
                 "next_sequence": settings.get('receipt_format', {}).get('next_sequence', 1)
             }
-            save_settings(settings)
-            st.success("✅ Receipt format saved successfully!")
+            if save_org_settings(settings, organization_id):
+                st.success("✅ Receipt format saved successfully!")
+            else:
+                st.error("❌ Failed to save receipt format.")
             
     with signature_tab:
         st.header("Signature Settings")
@@ -281,11 +344,11 @@ def settings_view():
                 "name": signature_name,
                 "designation": signature_designation
             }
-            save_settings(settings)
-            st.success("✅ Signature settings saved successfully!")
-            
-            # Refresh the page to show updated settings
-            st.rerun()
+            if save_org_settings(settings, organization_id):
+                st.success("✅ Signature settings saved successfully!")
+                st.rerun()
+            else:
+                st.error("❌ Failed to save signature settings.")
     
     with purposes_tab:
         st.header("Common Donation Purposes")
@@ -342,7 +405,7 @@ def settings_view():
                     st.session_state.purposes.pop(i)
                     # Update settings
                     settings["donation_purposes"] = st.session_state.purposes
-                    save_settings(settings)
+                    save_org_settings(settings, organization_id)
                     st.rerun()
         
         # Add new purpose
@@ -355,7 +418,7 @@ def settings_view():
                 st.session_state.purposes.append(new_purpose.strip())
                 # Update settings immediately
                 settings["donation_purposes"] = st.session_state.purposes
-                save_settings(settings)
+                save_org_settings(settings, organization_id)
                 st.success("✅ New purpose added successfully!")
                 st.rerun()
         
@@ -365,6 +428,16 @@ def settings_view():
             updated_purposes = [p for p in updated_purposes if p.strip()]
             st.session_state.purposes = updated_purposes
             settings["donation_purposes"] = updated_purposes
-            save_settings(settings)
-            st.success("✅ Donation purposes saved successfully!")
-            st.rerun() 
+            if save_org_settings(settings, organization_id):
+                st.success("✅ Donation purposes saved successfully!")
+                st.rerun()
+            else:
+                st.error("❌ Failed to save donation purposes.")
+    
+    with pdf_tab:
+        # Call the PDF settings page function from pdf_template module
+        pdf_settings_page()
+    
+    with email_tab:
+        # Call the email settings page function from email_template module
+        email_settings_page() 

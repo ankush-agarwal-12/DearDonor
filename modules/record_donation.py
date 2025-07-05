@@ -5,11 +5,13 @@ from modules.supabase_utils import (
     get_active_recurring_donations,
     update_recurring_donation_status, 
     get_last_receipt_number,
-    record_recurring_payment
+    record_recurring_payment,
+    get_organization_receipt_number,
+    get_organization_receipt_path
 )
 from modules.pdf_template import generate_receipt, DEFAULT_RECEIPT_SETTINGS
 from modules.email_utils import send_email_receipt
-from modules.settings import load_settings, save_settings
+from modules.settings import load_settings, save_settings, load_org_settings
 import os
 from datetime import datetime
 from dotenv import load_dotenv
@@ -22,49 +24,13 @@ import urllib.parse
 
 load_dotenv()
 
-def generate_receipt_number():
+def generate_receipt_number(organization_id: str = None):
     """Generate a sequential receipt number based on organization settings"""
-    settings = load_settings()
-    receipt_format = settings.get('receipt_format', {
-        'prefix': 'DR',
-        'format': '{prefix}/{YY}/{MM}/{XXX}',
-        'next_sequence': 1
-    })
-
-    current_date = datetime.now()
-    year_short = str(current_date.year)[-2:]
-    month = str(current_date.month).zfill(2)
-    
-    last_receipt = get_last_receipt_number()
-    
-    sequence = receipt_format['next_sequence']
-    if last_receipt:
-        pattern = receipt_format['format'].format(
-            prefix=receipt_format['prefix'],
-            YY=year_short,
-            MM=month,
-            XXX=r"(\d+)"
-        ).replace("/", "\\/")
+    if not organization_id:
+        raise ValueError("Organization ID is required")
         
-        match = re.search(pattern, last_receipt)
-        if match:
-            try:
-                sequence = int(match.group(1)) + 1
-            except ValueError:
-                sequence = receipt_format['next_sequence']
-    
-    receipt_number = receipt_format['format'].format(
-        prefix=receipt_format['prefix'],
-        YY=year_short,
-        MM=month,
-        XXX=str(sequence).zfill(3)
-    )
-    
-    receipt_format['next_sequence'] = sequence + 1
-    settings['receipt_format'] = receipt_format
-    save_settings(settings)
-    
-    return receipt_number
+    # Use the new organization-specific function
+    return get_organization_receipt_number(organization_id)
 
 def record_donation_view():
     # Custom CSS for styling
@@ -200,13 +166,19 @@ def record_donation_view():
     # Header
     st.markdown("# 💰 Record Donation")
     
-    # Load settings
-    settings = load_settings()
+    # Get organization_id from session state
+    if 'organization' not in st.session_state:
+        st.error("❌ Organization not found. Please login again.")
+        return
+    
+    organization_id = st.session_state.organization['id']
+    
+    # Load settings (moved after organization_id is defined)
+    settings = load_org_settings(organization_id)
     predefined_purposes = settings.get("donation_purposes", ["General Fund"])
     
-    
     # Fetch donors
-    donors = fetch_donors()
+    donors = fetch_donors(organization_id=organization_id)
     if not donors:
         st.warning("No donors found. Please add a donor first.")
         if st.button("➕ Add New Donor"):
@@ -251,7 +223,7 @@ def record_donation_view():
         donor_id = donor_options[selected_donor]["id"]
         
         # Check for active recurring plans
-        recurring_plans = get_active_recurring_donations(donor_id)
+        recurring_plans = get_active_recurring_donations(donor_id, organization_id=organization_id)
         st.session_state.active_recurring_plans = recurring_plans
         
         # Display donor information
@@ -501,10 +473,8 @@ def record_donation_view():
                     # Generate receipt number and path
                     status_text.text("Generating receipt number...")
                     progress_bar.progress(40)
-                    receipt_number = generate_receipt_number()
-                    receipt_dir = os.path.join("receipts")
-                    os.makedirs(receipt_dir, exist_ok=True)
-                    receipt_path = os.path.join(receipt_dir, f"{receipt_number.replace('/', '_')}.pdf")
+                    receipt_number = generate_receipt_number(organization_id=organization_id)
+                    receipt_path = get_organization_receipt_path(organization_id, receipt_number)
                     
                     # Add receipt info to payment details
                     payment_details["receipt_number"] = receipt_number
@@ -521,7 +491,8 @@ def record_donation_view():
                             recurring_id=plan['id'],
                             amount=plan['Amount'],
                             payment_date=date,
-                            payment_details=payment_details
+                            payment_details=payment_details,
+                            organization_id=organization_id
                         )
 
                         if result:
@@ -541,7 +512,8 @@ def record_donation_view():
                             next_due_date=next_due.isoformat() if st.session_state.show_recurring_fields else None,
                             recurring_status="Active" if st.session_state.show_recurring_fields else None,
                             linked_to_recurring=False,
-                            is_scheduled_payment=False
+                            is_scheduled_payment=False,
+                            organization_id=organization_id
                         )
 
                         if result:
@@ -565,7 +537,7 @@ def record_donation_view():
                         
                         try:
                             # Generate receipt
-                            generate_receipt(donor_data, receipt_path)
+                            generate_receipt(donor_data, receipt_path, organization_id=organization_id)
                             
                             # Send email if requested
                             if send_receipt and donor_options[selected_donor].get("Email"):
@@ -621,9 +593,9 @@ def record_donation_view():
             )
 
             # Add WhatsApp notification button
-            if donor_options[selected_donor].get("Phone"):
+            if donor_options[selected_donor] and donor_options[selected_donor].get("Phone"):
                 # Get organization name from settings
-                settings = load_settings()
+                settings = load_org_settings(organization_id)
                 org_name = settings.get('organization', {}).get('name', 'Our Organization')
                 
                 # Get donation data from session state
@@ -682,7 +654,7 @@ def show_donation_form():
         selected_donor = st.selectbox("Select Donor", range(len(donor_names)), format_func=lambda x: donor_names[x])
 
         # Get active recurring plans for selected donor
-        recurring_plans = get_active_recurring_donations(donor_options[selected_donor]["id"])
+        recurring_plans = get_active_recurring_donations(donor_options[selected_donor]["id"], organization_id=organization_id)
         
         # Initialize session state for recurring fields if not exists
         if 'show_recurring_fields' not in st.session_state:
@@ -808,10 +780,8 @@ def show_donation_form():
                     # Generate receipt number and path
                     status_text.text("Generating receipt number...")
                     progress_bar.progress(40)
-                    receipt_number = generate_receipt_number()
-                    receipt_dir = os.path.join("receipts")
-                    os.makedirs(receipt_dir, exist_ok=True)
-                    receipt_path = os.path.join(receipt_dir, f"{receipt_number.replace('/', '_')}.pdf")
+                    receipt_number = generate_receipt_number(organization_id=organization_id)
+                    receipt_path = get_organization_receipt_path(organization_id, receipt_number)
                     
                     # Add receipt info to payment details
                     payment_details["receipt_number"] = receipt_number
@@ -828,7 +798,8 @@ def show_donation_form():
                             recurring_id=plan['id'],
                             amount=plan['Amount'],
                             payment_date=date,
-                            payment_details=payment_details
+                            payment_details=payment_details,
+                            organization_id=organization_id
                         )
 
                         if result:
@@ -848,7 +819,8 @@ def show_donation_form():
                             next_due_date=next_due.isoformat() if st.session_state.show_recurring_fields else None,
                             recurring_status="Active" if st.session_state.show_recurring_fields else None,
                             linked_to_recurring=False,
-                            is_scheduled_payment=False
+                            is_scheduled_payment=False,
+                            organization_id=organization_id
                         )
 
                         if result:
@@ -872,7 +844,7 @@ def show_donation_form():
                         
                         try:
                             # Generate receipt
-                            generate_receipt(donor_data, receipt_path)
+                            generate_receipt(donor_data, receipt_path, organization_id=organization_id)
                             
                             # Send email if requested
                             if send_receipt and donor_options[selected_donor].get("Email"):

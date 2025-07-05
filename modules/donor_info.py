@@ -84,8 +84,15 @@ def donor_info_view():
     # Header with icon and title
     st.markdown("# 👥 Donor Information")
 
+    # Get organization_id from session state
+    if 'organization' not in st.session_state:
+        st.error("❌ Organization not found. Please login again.")
+        return
+    
+    organization_id = st.session_state.organization['id']
+    
     # Fetch all donors
-    donors = fetch_donors()
+    donors = fetch_donors(organization_id=organization_id)
     
     if not donors:
         st.warning("No donors found in the database.")
@@ -240,7 +247,8 @@ def donor_info_view():
                                     "address": new_address,
                                     "pan": new_pan,
                                     "donor_type": new_type
-                                }
+                                },
+                                organization_id=organization_id
                             )
                             # Update the selected donor display name in session state
                             new_display_name = f"{new_name} ({new_email})"
@@ -255,7 +263,7 @@ def donor_info_view():
                             st.rerun()
 
                 # Fetch donor's donations once
-                donations = get_donor_donations(donor['id'])
+                donations = get_donor_donations(donor['id'], organization_id=organization_id)
                 
                 # Delete Donor Section - Only show if no donations exist
                 if not donations:
@@ -273,7 +281,7 @@ def donor_info_view():
                         with col1:
                             if st.button("🗑️ Delete Donor", type="secondary", key=f"delete_donor_{donor['id']}"):
                                 # Attempt to delete the donor
-                                if delete_donor(donor['id']):
+                                if delete_donor(donor['id'], organization_id=organization_id):
                                     st.success("Donor deleted successfully!")
                                     # Reset the selected donor to default
                                     st.session_state.selected_donor_display = "Select a donor..."
@@ -434,7 +442,7 @@ def donor_info_view():
                         with col1:
                             if st.button("🗑️ Delete Donation", type="secondary"):
                                 # Attempt to delete the donation
-                                if delete_donation(donation_id_to_delete):
+                                if delete_donation(donation_id_to_delete, organization_id=organization_id):
                                     st.success("Donation deleted successfully!")
                                     st.rerun()
                                 else:
