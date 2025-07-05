@@ -18,9 +18,10 @@ tomli==2.2.1
 urllib3==2.4.0
 uv==0.7.12
 supabase==1.2.0
-python-dotenv==1.0.1
-reportlab==3.5.68
-num2words==0.5.12
-plotly==5.22.0
-openpyxl==3.1.2
-PyMuPDF==1.23.22
+python-dotenv
+reportlab
+num2words
+plotly
+openpyxl
+PyMuPDF
+bcrypt
