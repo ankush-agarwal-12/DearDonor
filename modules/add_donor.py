@@ -1,6 +1,6 @@
 import streamlit as st
 import re
-from modules.supabase_utils import add_donor, fetch_donors
+from modules.supabase_utils import add_donor, fetch_donors, validate_email_format
 
 def validate_phone_number(phone):
     """
@@ -51,7 +51,7 @@ def add_donor_view():
     with st.form("add_donor_form"):
         full_name = st.text_input("Full Name*")
         phone = st.text_input("Phone Number*", placeholder="e.g., 9876543210")
-        email = st.text_input("Email")
+        email = st.text_input("Email", placeholder="e.g., donor@example.com")
         address = st.text_area("Address")
         pan = st.text_input("PAN Number")
         donor_type = st.selectbox(
@@ -73,6 +73,12 @@ def add_donor_view():
                 st.error("❌ Invalid phone number format. Please enter a valid 10-digit Indian mobile number.")
                 st.info("💡 **Valid formats:** 9876543210, +91-9876543210, 09876543210, +919876543210")
                 return
+            
+            # Validate email format if provided
+            if email and not validate_email_format(email):
+                st.error("❌ Invalid email format. Please enter a valid email address.")
+                st.info("💡 **Example:** user@example.com")
+                return
                 
             try:
                 # Format phone number to standard format
@@ -90,16 +96,26 @@ def add_donor_view():
                 
                 if result:
                     st.success("✅ Donor added successfully!")
-                    # Check for duplicate phone number
+                    # Check for duplicate phone number (warning only)
                     if formatted_phone:
                         donors = fetch_donors(organization_id=organization_id)
                         for donor in donors:
                             if donor["Phone"] == formatted_phone and donor["Full Name"] != full_name:
-                                st.warning(f"This number is also registered to: {donor['Full Name']}.")
+                                st.warning(f"ℹ️ Note: This phone number is also registered to: {donor['Full Name']}")
                                 break
                     # Clear form
                     st.empty()
                 else:
                     st.error("❌ Failed to add donor. Please try again.")
+                    
+            except ValueError as e:
+                error_msg = str(e)
+                if "Email already exists" in error_msg:
+                    st.error(f"❌ {error_msg}")
+                    st.info("💡 Each donor must have a unique email address within your organization.")
+                elif "Invalid email format" in error_msg:
+                    st.error("❌ Invalid email format. Please enter a valid email address.")
+                else:
+                    st.error(f"❌ {error_msg}")
             except Exception as e:
-                st.error(f"An error occurred: {e}")
+                st.error(f"❌ An unexpected error occurred: {e}")

@@ -56,12 +56,7 @@ DearDonor supports multiple payment methods:
 - Cheque
 - Online Payment
 
-### How do I set up recurring donations?
-When recording a donation:
-1. Enable recurring donation option
-2. Choose frequency (Monthly/Quarterly/Yearly)
-3. Set start date
-4. The system will track the schedule automatically
+
 
 ### How do I download receipts?
 There are several ways:

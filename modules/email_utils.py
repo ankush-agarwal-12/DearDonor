@@ -198,14 +198,16 @@ def send_email_receipt(to_email, donor_name, receipt_path, amount, receipt_numbe
         html_body = convert_to_html(email_body, org_details)
         msg.attach(MIMEText(html_body, 'html', 'utf-8'))
         
-        # Attach the PDF receipt
+        # Attach the PDF receipt with clean receipt number filename
         with open(receipt_path, 'rb') as f:
             part = MIMEBase('application', 'octet-stream')
             part.set_payload(f.read())
             encoders.encode_base64(part)
+            # Use clean receipt number as filename
+            clean_filename = f"{receipt_number.replace('/', '_')}.pdf" if receipt_number else "receipt.pdf"
             part.add_header(
                 'Content-Disposition',
-                f'attachment; filename="{os.path.basename(receipt_path)}"'
+                f'attachment; filename="{clean_filename}"'
             )
             msg.attach(part)
         

@@ -245,7 +245,7 @@ def dashboard_view():
     with col1:
         st.markdown('<p class="time-range-label">Select Time Range</p>', unsafe_allow_html=True)
         time_range = st.selectbox(
-            "",
+            "Time Range",
             ["Last 7 Days", "Last 30 Days", "Last 90 Days", "This Year", "All Time"],
             label_visibility="collapsed"
         )

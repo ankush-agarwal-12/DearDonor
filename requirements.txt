@@ -25,3 +25,5 @@ plotly
 openpyxl
 PyMuPDF
 bcrypt
+pyarrow
+streamlit

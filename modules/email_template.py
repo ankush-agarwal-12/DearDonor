@@ -248,7 +248,7 @@ def email_settings_page():
         st.success("✅ Template and subject line saved successfully!")
         st.session_state.current_template = new_template
 
-def send_email(to_email, subject, body, receipt_path=None):
+def send_email(to_email, subject, body, receipt_path=None, receipt_number=None):
     try:
         # Create message container
         msg = MIMEMultipart()
@@ -265,9 +265,14 @@ def send_email(to_email, subject, body, receipt_path=None):
                 part = MIMEBase('application', 'octet-stream')
                 part.set_payload(attachment.read())
                 encoders.encode_base64(part)
+                # Use clean receipt number as filename if provided
+                if receipt_number:
+                    clean_filename = f"{receipt_number.replace('/', '_')}.pdf"
+                else:
+                    clean_filename = os.path.basename(receipt_path)
                 part.add_header(
                     'Content-Disposition',
-                    f'attachment; filename="{os.path.basename(receipt_path)}"'
+                    f'attachment; filename="{clean_filename}"'
                 )
                 msg.attach(part)
 

@@ -78,16 +78,7 @@ Record new donations easily:
 - Cheque
 - Online Payment
 
-### 🔄 Recurring Donations
-Manage recurring donations efficiently:
-1. Set up recurring donations while recording
-2. Choose frequency:
-   - Monthly
-   - Quarterly
-   - Yearly
-3. Track recurring donation status
-4. View payment history
-5. Manage recurring schedules
+
 
 ### 📄 View Receipts
 Comprehensive receipt management:
@@ -158,11 +149,9 @@ Manage donation configuration:
    - Record new donations promptly
    - Send receipts immediately
    - Update donor information
-   - Check recurring donations
 
 2. Monthly Tasks
    - Export donation data
-   - Review recurring payments
    - Update donor records
    - Backup important data
 

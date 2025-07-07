@@ -11,7 +11,7 @@ from modules.settings import settings_view
 from modules.supabase_utils import fetch_all_donations, fetch_donors
 from modules import add_donor, dashboard, donor_info, record_donation
 from modules.documentation import documentation_view
-from modules.recurring_donations import recurring_donations_view
+
 
 # Page configuration
 st.set_page_config(
@@ -278,7 +278,6 @@ def main_app():
         "Dashboard": {"icon": "🏠", "tooltip": "Overview of donations and key metrics"},
         "Add Donor": {"icon": "➕", "tooltip": "Register new donors in the system"},
         "Record Donation": {"icon": "💰", "tooltip": "Record new donations from donors"},
-        "Recurring Donations": {"icon": "🔄", "tooltip": "Manage recurring donation schedules"},
         "Donor Info": {"icon": "👥", "tooltip": "View and manage donor information"},
         "Data Export": {"icon": "📤", "tooltip": "Export donation and donor data"}
     }
@@ -368,8 +367,7 @@ def main_app():
         add_donor_view()
     elif selected == "Record Donation":
         record_donation_view()
-    elif selected == "Recurring Donations":
-        recurring_donations_view()
+
     elif selected == "Donor Info":
         donor_info_view()
     elif selected == "Data Export":
@@ -400,4 +398,11 @@ def main():
         show_auth_wrapper()
 
 if __name__ == "__main__":
+    # Clean up old temporary receipt files at startup
+    # try:
+    #     from modules.supabase_utils import cleanup_temp_receipts
+    #     cleanup_temp_receipts()
+    # except Exception as e:
+    #     print(f"Failed to cleanup temp receipts: {e}")
+    
     main()

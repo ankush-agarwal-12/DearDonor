@@ -20,15 +20,83 @@ if not SUPABASE_KEY:
 
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
+def extract_receipt_number_from_path(receipt_path: str) -> str:
+    """Extract just the receipt number from full file path"""
+    if not receipt_path:
+        return ""
+    
+    # Get filename from path and remove extension
+    filename = os.path.basename(receipt_path)
+    receipt_number = os.path.splitext(filename)[0]
+    
+    # Convert underscores back to slashes for proper receipt number format
+    receipt_number = receipt_number.replace('_', '/')
+    
+    return receipt_number
+
+def get_receipt_file_path(receipt_path: str) -> str:
+    """Get the full file path for downloading receipt"""
+    if not receipt_path:
+        return ""
+    
+    # If it's already a full path, return as is
+    if receipt_path.startswith('uploads/'):
+        return receipt_path
+    
+    # Otherwise, it might be just the receipt number, reconstruct the path
+    return receipt_path
+
+def validate_email_format(email: str) -> bool:
+    """Validate email format using regex"""
+    if not email or email.strip() == "":
+        return True  # Empty email is allowed
+    
+    pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+    return re.match(pattern, email.strip()) is not None
+
+def check_email_exists(email: str, organization_id: str, exclude_donor_id: str = None) -> tuple[bool, dict]:
+    """
+    Check if email already exists for the organization
+    Returns (exists, donor_info)
+    """
+    if not email or email.strip() == "":
+        return False, {}
+    
+    try:
+        query = supabase.table("donors").select("id, full_name, email").eq("organization_id", organization_id).eq("email", email.strip().lower())
+        
+        # Exclude current donor if updating
+        if exclude_donor_id:
+            query = query.neq("id", exclude_donor_id)
+            
+        result = query.execute()
+        
+        if result.data:
+            return True, result.data[0]
+        return False, {}
+    except Exception as e:
+        print(f"Error checking email existence: {str(e)}")
+        return False, {}
+
 def add_donor(full_name: str, email: str, phone: str = None, address: str = None, pan: str = None, donor_type: str = "Individual", organization_id: str = None) -> dict:
-    """Add a new donor to Supabase"""
+    """Add a new donor to Supabase with email validation"""
     try:
         if not organization_id:
             raise ValueError("Organization ID is required")
+        
+        # Validate email format
+        if email and not validate_email_format(email):
+            raise ValueError("Invalid email format")
+        
+        # Check for duplicate email within organization
+        if email and email.strip():
+            email_exists, existing_donor = check_email_exists(email.strip().lower(), organization_id)
+            if email_exists:
+                raise ValueError(f"Email already exists for donor: {existing_donor['full_name']}")
             
         data = {
             "full_name": full_name,
-            "email": email,
+            "email": email.strip().lower() if email else email,
             "phone": phone,
             "address": address,
             "pan": pan,
@@ -45,7 +113,7 @@ def add_donor(full_name: str, email: str, phone: str = None, address: str = None
         print(f"Error adding donor: {str(e)}")
         print(f"Error type: {type(e)}")
         print(f"Error details: {e.__dict__}")
-        return None
+        raise e  # Re-raise to show specific error message
 
 def fetch_donors(organization_id: str = None):
     """Fetch all donors from Supabase for a specific organization"""
@@ -77,7 +145,7 @@ def fetch_donors(organization_id: str = None):
         print(f"Error fetching donors: {str(e)}")
         return []
 
-def record_donation(donor_id, amount, date, purpose, payment_method, payment_details, is_recurring=False, recurring_frequency=None, start_date=None, next_due_date=None, recurring_status=None, linked_to_recurring=False, recurring_id=None, is_scheduled_payment=False, organization_id=None):
+def record_donation(donor_id, amount, date, purpose, payment_method, payment_details, organization_id=None):
     """Record a donation in the database"""
     try:
         if not organization_id:
@@ -90,21 +158,9 @@ def record_donation(donor_id, amount, date, purpose, payment_method, payment_det
             "purpose": purpose,
             "payment_mode": payment_method,
             "payment_details": payment_details,
-            "is_recurring": is_recurring,
-            "recurring_frequency": recurring_frequency,
-            "start_date": start_date,
-            "next_due_date": next_due_date,
-            "recurring_status": recurring_status,
-            "linked_to_recurring": linked_to_recurring,
-            "recurring_id": recurring_id,
-            "is_scheduled_payment": is_scheduled_payment,
             "organization_id": organization_id,
             "receipt_path": payment_details.get("receipt_path") if payment_details else None
         }
-
-        # If this is a new recurring donation, set the last_paid_date to start_date
-        if is_recurring and not linked_to_recurring:
-            data["last_paid_date"] = start_date
 
         result = supabase.table("donations").insert(data).execute()
         
@@ -129,6 +185,7 @@ def fetch_all_donations(organization_id: str = None):
         
         for donation in donations:
             donor = donation["donors"]
+            receipt_path = donation.get("receipt_path", "")
             transformed_donations.append({
                 "id": donation["id"],
                 "Donor": donation["donor_id"],
@@ -137,15 +194,8 @@ def fetch_all_donations(organization_id: str = None):
                 "date": donation["date"],
                 "Purpose": donation.get("purpose", ""),
                 "payment_method": donation["payment_mode"],
-                "receipt_no": donation.get("receipt_path"),
-                "is_recurring": donation.get("is_recurring", False),
-                "recurring_frequency": donation.get("recurring_frequency"),
-                "start_date": donation.get("start_date"),
-                "next_due_date": donation.get("next_due_date"),
-                "recurring_status": donation.get("recurring_status"),
-                "last_paid_date": donation.get("last_paid_date"),
-                "linked_to_recurring": donation.get("linked_to_recurring", False),
-                "recurring_id": donation.get("recurring_id")
+                "receipt_no": extract_receipt_number_from_path(receipt_path),
+                "receipt_path": receipt_path  # Keep full path for downloads
             })
         
         return transformed_donations
@@ -170,13 +220,15 @@ def get_donor_donations(donor_id: str, organization_id: str = None):
         
         transformed_donations = []
         for donation in result.data:
+            receipt_path = donation.get("receipt_path", "")
             transformed_donations.append({
                 "id": donation["id"],
                 "Amount": donation["amount"],
                 "date": donation["date"],
                 "payment_method": donation["payment_mode"],
                 "Purpose": donation["purpose"],
-                "receipt_no": donation.get("receipt_path", "")
+                "receipt_no": extract_receipt_number_from_path(receipt_path),
+                "receipt_path": receipt_path  # Keep full path for downloads
             })
         
         return transformed_donations
@@ -185,10 +237,27 @@ def get_donor_donations(donor_id: str, organization_id: str = None):
         return []
 
 def update_donor(record_id: str, data: dict, organization_id: str = None) -> bool:
-    """Update donor information"""
+    """Update donor information with email validation"""
     try:
         if not organization_id:
             raise ValueError("Organization ID is required")
+        
+        # If email is being updated, validate it
+        if 'email' in data:
+            email = data['email']
+            
+            # Validate email format
+            if email and not validate_email_format(email):
+                raise ValueError("Invalid email format")
+            
+            # Check for duplicate email within organization (excluding current donor)
+            if email and email.strip():
+                email_exists, existing_donor = check_email_exists(email.strip().lower(), organization_id, record_id)
+                if email_exists:
+                    raise ValueError(f"Email already exists for donor: {existing_donor['full_name']}")
+                
+                # Normalize email
+                data['email'] = email.strip().lower()
             
         result = supabase.table("donors")\
             .update(data)\
@@ -198,66 +267,9 @@ def update_donor(record_id: str, data: dict, organization_id: str = None) -> boo
         return bool(result.data)
     except Exception as e:
         print(f"Error updating donor: {str(e)}")
-        return False
+        raise e  # Re-raise to show specific error message
 
-def get_active_recurring_donations(donor_id, organization_id: str = None):
-    """Get all active recurring donations for a donor from the donations table"""
-    try:
-        if not organization_id:
-            raise ValueError("Organization ID is required")
-            
-        print(f"\n=== Debugging get_active_recurring_donations ===")
-        print(f"Input donor_id: {donor_id}")
-        print(f"Input organization_id: {organization_id}")
-        
-        # Query the donations table for active recurring donations
-        # Only get the original recurring plans, not the linked payments
-        query = supabase.table("donations") \
-            .select("*, donors(full_name, email)") \
-            .eq("donor_id", donor_id) \
-            .eq("organization_id", organization_id) \
-            .eq("is_recurring", True) \
-            .eq("recurring_status", "Active") \
-            .eq("linked_to_recurring", False) \
-            .order("start_date", desc=True)
-            
-        print(f"Executing query: {query}")
-        result = query.execute()
-        
-        print(f"Query result data: {result.data}")
-        print(f"Query result count: {len(result.data) if result.data else 0}")
-        
-        recurring_plans = []
-        if result.data:
-            for donation in result.data:
-                recurring_info = {
-                    "id": donation["id"],
-                    "Amount": donation["amount"],
-                    "Frequency": donation.get("recurring_frequency", "Monthly"),
-                    "start_date": donation.get("start_date"),
-                    "next_due_date": donation.get("next_due_date"),
-                    "recurring_status": donation.get("recurring_status"),
-                    "Purpose": donation.get("purpose", "General Fund"),
-                    "last_paid_date": donation.get("last_paid_date")
-                }
-                recurring_plans.append(recurring_info)
-            
-            print(f"Found {len(recurring_plans)} recurring plans")
-            return recurring_plans
-            
-        print("No active recurring donations found")
-        return None
-    except Exception as e:
-        print(f"Error in get_active_recurring_donations: {str(e)}")
-        print(f"Error type: {type(e)}")
-        import traceback
-        print(f"Traceback: {traceback.format_exc()}")
-        return None
 
-# Remove the legacy function since it's redundant
-# def get_active_recurring_donation(donor_id):
-#     """Get active recurring donations for a donor (legacy function)"""
-#     return get_active_recurring_donations(donor_id)
 
 def get_last_receipt_number(organization_id: str = None):
     """Get the last receipt number from the donations table for a specific organization"""
@@ -279,186 +291,15 @@ def get_last_receipt_number(organization_id: str = None):
         print(f"Error getting last receipt number: {str(e)}")
         return None
 
-def record_recurring_payment(donor_id, recurring_id, amount, payment_date, payment_details, organization_id=None):
-    """Record a payment for a recurring donation"""
-    try:
-        if not organization_id:
-            raise ValueError("Organization ID is required")
-            
-        # Get the recurring donation details
-        recurring = supabase.table("donations")\
-            .select("*")\
-            .eq("id", recurring_id)\
-            .eq("organization_id", organization_id)\
-            .single()\
-            .execute()
-            
-        if not recurring.data:
-            print("No recurring plan found")
-            return False
-            
-        # Record the payment as a linked donation
-        data = {
-            "donor_id": donor_id,
-            "amount": amount,
-            "date": payment_date.isoformat() if hasattr(payment_date, 'isoformat') else payment_date,
-            "purpose": recurring.data.get("purpose"),
-            "payment_mode": recurring.data.get("payment_mode"),
-            "payment_details": payment_details,
-            "is_recurring": True,
-            "recurring_frequency": recurring.data.get("recurring_frequency"),
-            "linked_to_recurring": True,
-            "recurring_id": recurring_id,
-            "organization_id": organization_id,
-            "receipt_path": payment_details.get("receipt_path") if payment_details else None
-        }
-        
-        result = supabase.table("donations").insert(data).execute()
-        
-        if result.data:
-            # Calculate next due date based on frequency
-            frequency = recurring.data.get("recurring_frequency")
-            payment_date_obj = datetime.fromisoformat(payment_date.isoformat()) if hasattr(payment_date, 'isoformat') else datetime.fromisoformat(payment_date)
-            
-            if frequency == "Monthly":
-                next_due = payment_date_obj + relativedelta(months=1)
-            elif frequency == "Quarterly":
-                next_due = payment_date_obj + relativedelta(months=3)
-            elif frequency == "Half-Yearly":
-                next_due = payment_date_obj + relativedelta(months=6)
-            else:  # Yearly
-                next_due = payment_date_obj + relativedelta(years=1)
-            
-            # Update both last_paid_date and next_due_date
-            update_data = {
-                "last_paid_date": payment_date.isoformat() if hasattr(payment_date, 'isoformat') else payment_date,
-                "next_due_date": next_due.isoformat()
-            }
-            
-            print(f"Updating recurring plan with data: {update_data}")
-            
-            update_result = supabase.table("donations")\
-                .update(update_data)\
-                .eq("id", recurring_id)\
-                .execute()
-            
-            print(f"Update result: {update_result.data}")
-            
-            return update_result.data is not None
-            
-        return False
-    except Exception as e:
-        print(f"Error recording recurring payment: {str(e)}")
-        return False
 
-def update_recurring_donation_status(recurring_id, last_payment_date, was_overdue, organization_id: str = None):
-    """Update the status of a recurring donation after payment"""
-    try:
-        if not organization_id:
-            raise ValueError("Organization ID is required")
-            
-        result = supabase.table("donations") \
-            .select("*") \
-            .eq("id", recurring_id) \
-            .eq("organization_id", organization_id) \
-            .execute()
-            
-        if not result.data:
-            return False
-            
-        recurring_info = result.data[0]
-        frequency = recurring_info["recurring_frequency"]
-        
-        from modules.recurring_donations import calculate_next_due_date
-        next_due = calculate_next_due_date(last_payment_date, frequency)
-            
-        update_data = {
-            "last_paid_date": last_payment_date.isoformat(),
-            "next_due_date": next_due.isoformat(),
-            "recurring_status": "Active"
-        }
-        
-        result = supabase.table("donations") \
-            .update(update_data) \
-            .eq("id", recurring_id) \
-            .execute()
-            
-        return bool(result.data)
-    except Exception as e:
-        print(f"Error updating recurring donation status: {str(e)}")
-        return False
 
-def get_active_recurring_donation(donation_id: str, organization_id: str = None):
-    """Fetch a specific active recurring donation by ID"""
-    try:
-        if not organization_id:
-            raise ValueError("Organization ID is required")
-            
-        result = supabase.table("donations")\
-            .select("*, donors(full_name, email)")\
-            .eq("id", donation_id)\
-            .eq("organization_id", organization_id)\
-            .eq("is_recurring", True)\
-            .neq("recurring_status", "Cancelled")\
-            .execute()
-        
-        if not result.data:
-            return None
-        
-        donation = result.data[0]
-        donor = donation["donors"]
-        
-        return {
-            "id": donation["id"],
-            "Donor": donation["donor_id"],
-            "Email": donor["email"],
-            "Amount": donation["amount"],
-            "recurring_frequency": donation.get("recurring_frequency"),
-            "start_date": donation.get("start_date"),
-            "next_due_date": donation.get("next_due_date"),
-            "recurring_status": donation.get("recurring_status"),
-            "last_paid_date": donation.get("last_paid_date"),
-            "purpose": donation.get("purpose", "Recurring Donation")
-        }
-    except Exception as e:
-        print(f"Error fetching recurring donation: {str(e)}")
-        return None
 
-def update_recurring_status(donation_id: str, new_status: str, organization_id: str = None) -> bool:
-    """Update the status of a recurring donation (Active/Paused/Cancelled)"""
-    try:
-        if not organization_id:
-            raise ValueError("Organization ID is required")
-            
-        data = {
-            "recurring_status": new_status,
-            "next_due_date": None if new_status == "Cancelled" else None
-        }
-        result = supabase.table("donations")\
-            .update(data)\
-            .eq("id", donation_id)\
-            .eq("organization_id", organization_id)\
-            .execute()
-        return bool(result.data)
-    except Exception as e:
-        print(f"Error updating recurring status: {str(e)}")
-        return False
 
-def bulk_update_recurring_status(donation_ids: list, new_status: str, organization_id: str = None) -> bool:
-    """Update the status of multiple recurring donations"""
-    try:
-        if not organization_id:
-            raise ValueError("Organization ID is required")
-            
-        success = True
-        for donation_id in donation_ids:
-            result = update_recurring_status(donation_id, new_status, organization_id)
-            if not result:
-                success = False
-        return success
-    except Exception as e:
-        print(f"Error in bulk update: {str(e)}")
-        return False
+
+
+
+
+
 
 def delete_donation(donation_id: str, organization_id: str = None) -> bool:
     """Delete a donation from the database"""
@@ -466,31 +307,6 @@ def delete_donation(donation_id: str, organization_id: str = None) -> bool:
         if not organization_id:
             raise ValueError("Organization ID is required")
             
-        # First get the donation to check if it's linked to a recurring plan
-        result = supabase.table("donations") \
-            .select("*") \
-            .eq("id", donation_id) \
-            .eq("organization_id", organization_id) \
-            .execute()
-            
-        if not result.data:
-            print(f"Error: Donation with ID {donation_id} not found")
-            return False
-            
-        donation = result.data[0]
-        
-        # If this is a recurring donation with linked payments, don't allow deletion
-        if donation.get("is_recurring") and donation.get("recurring_status") != "Cancelled":
-            linked_payments = supabase.table("donations") \
-                .select("id") \
-                .eq("recurring_id", donation_id) \
-                .eq("linked_to_recurring", True) \
-                .execute()
-                
-            if linked_payments.data:
-                print(f"Error: Cannot delete active recurring donation with linked payments")
-                return False
-        
         # Delete the donation
         result = supabase.table("donations") \
             .delete() \
@@ -753,3 +569,247 @@ def get_organization_receipt_path(organization_id: str, receipt_number: str) -> 
     except Exception as e:
         print(f"Error getting receipt path: {str(e)}")
         return f"receipts/{receipt_number.replace('/', '_')}.pdf"  # Fallback
+
+def generate_receipt_on_demand(donation_id: str, organization_id: str) -> str:
+    """Generate receipt PDF on-demand for download"""
+    try:
+        # Get donation details
+        result = supabase.table("donations").select(
+            "*, donors(full_name, email, pan)"
+        ).eq("id", donation_id).eq("organization_id", organization_id).execute()
+        
+        if not result.data:
+            raise ValueError("Donation not found")
+        
+        donation = result.data[0]
+        donor = donation["donors"]
+        
+        # Get payment details
+        payment_details = donation.get("payment_details", {})
+        receipt_number = payment_details.get("receipt_number", "")
+        
+        # Prepare donor data for PDF generation
+        donor_data = {
+            "name": donor["full_name"],
+            "email": donor["email"],
+            "pan": donor.get("pan", "N/A"),
+            "amount": str(donation["amount"]),
+            "date": donation["date"],
+            "purpose": donation["purpose"],
+            "payment_mode": donation["payment_mode"],
+            "receipt_number": receipt_number
+        }
+        
+        # Create temporary file path
+        import tempfile
+        temp_dir = tempfile.gettempdir()
+        temp_file = os.path.join(temp_dir, f"receipt_{donation_id}_{receipt_number.replace('/', '_')}.pdf")
+        
+        # Generate PDF
+        from modules.pdf_template import generate_receipt
+        generate_receipt(donor_data, temp_file, organization_id=organization_id)
+        
+        return temp_file
+        
+    except Exception as e:
+        print(f"Error generating receipt on demand: {str(e)}")
+        return None
+
+def cleanup_temp_receipts():
+    """Clean up temporary receipt files"""
+    try:
+        import tempfile
+        import glob
+        
+        temp_dir = tempfile.gettempdir()
+        receipt_pattern = os.path.join(temp_dir, "receipt_*.pdf")
+        
+        # Find and delete temporary receipt files older than 1 hour
+        import time
+        current_time = time.time()
+        deleted_count = 0
+        
+        for file_path in glob.glob(receipt_pattern):
+            try:
+                # Check file age (1 hour = 3600 seconds)
+                if os.path.exists(file_path) and (current_time - os.path.getmtime(file_path)) > 3600:
+                    os.remove(file_path)
+                    deleted_count += 1
+            except:
+                continue  # Skip files that can't be deleted
+        
+        print(f"Cleaned up {deleted_count} temporary receipt files")
+        return deleted_count
+        
+    except Exception as e:
+        print(f"Error cleaning up temporary receipts: {str(e)}")
+        return 0
+
+def send_organization_email_receipt(to_email, donor_name, receipt_path, amount, receipt_number="", purpose="", payment_mode="", organization_id=None):
+    """Send donation receipt email using organization-specific details from database"""
+    try:
+        if not organization_id:
+            raise ValueError("Organization ID is required")
+        
+        # Get organization settings from database
+        org_settings = get_organization_settings(organization_id)
+        org_data = org_settings.get('organization', {})
+        
+        # Import email modules
+        import smtplib
+        from email.mime.text import MIMEText
+        from email.mime.multipart import MIMEMultipart
+        from email.mime.base import MIMEBase
+        from email import encoders
+        from num2words import num2words
+        from datetime import datetime
+        import os
+        from dotenv import load_dotenv
+        
+        load_dotenv()
+        
+        # Email settings
+        EMAIL_ADDRESS = os.getenv("EMAIL_ADDRESS", "your-email@gmail.com")
+        EMAIL_PASSWORD = os.getenv("EMAIL_PASSWORD", "your-app-password")
+        
+        # Create message container
+        msg = MIMEMultipart('alternative')
+        msg['From'] = EMAIL_ADDRESS
+        msg['To'] = to_email
+        
+        # Subject
+        subject = f"Donation Receipt - Thank You, {donor_name}"
+        msg['Subject'] = subject
+        
+        # Convert amount to words
+        try:
+            amount_in_words = num2words(float(amount), lang='en_IN').title()
+        except:
+            amount_in_words = str(amount)
+        
+        # Get social media links
+        social_media = org_data.get('social_media', {})
+        social_links = []
+        if social_media.get('facebook'):
+            social_links.append(f"Facebook: {social_media['facebook']}")
+        if social_media.get('instagram'):
+            social_links.append(f"Instagram: {social_media['instagram']}")
+        if social_media.get('youtube'):
+            social_links.append(f"YouTube: {social_media['youtube']}")
+        social_text = " | ".join(social_links) if social_links else "Follow us on social media"
+        
+        # Create email body with organization-specific details
+        email_body = f"""Dear {donor_name},
+
+Thank you for your generous donation of Rs. {amount} /- ({amount_in_words}) to {org_data.get('name', 'Our Organization')}. Your contribution will help us make a difference.
+
+Receipt Details:
+- Receipt Number: {receipt_number}
+- Date: {datetime.now().strftime("%d/%m/%Y")}
+- Purpose: {purpose or "General Donation"}
+- Payment Mode: {payment_mode or "Online"}
+
+The official receipt is attached to this email.
+
+Best regards,
+Accounts Department
+{org_data.get('name', 'Our Organization')}
+
+Contact us:
+{org_data.get('email', '')} | {org_data.get('phone', '')}
+{social_text}
+Address: {org_data.get('office_address', '')}
+"""
+        
+        # Add plain text version
+        msg.attach(MIMEText(email_body, 'plain', 'utf-8'))
+        
+        # Add HTML version with better formatting
+        html_body = f"""
+        <html>
+        <head>
+            <style>
+                body {{
+                    font-family: Arial, sans-serif;
+                    line-height: 1.6;
+                    color: #333;
+                }}
+                .header {{
+                    color: #2196F3;
+                    font-size: 18px;
+                    font-weight: bold;
+                }}
+                .receipt-details {{
+                    background-color: #f5f5f5;
+                    padding: 15px;
+                    border-radius: 5px;
+                    margin: 15px 0;
+                }}
+                .contact-info {{
+                    margin-top: 20px;
+                    font-size: 14px;
+                    color: #666;
+                }}
+                a {{
+                    color: #2196F3;
+                    text-decoration: none;
+                }}
+            </style>
+        </head>
+        <body>
+            <p>Dear {donor_name},</p>
+            
+            <p>Thank you for your generous donation of <strong>Rs. {amount} /-</strong> (<em>{amount_in_words}</em>) to <strong>{org_data.get('name', 'Our Organization')}</strong>. Your contribution will help us make a difference.</p>
+            
+            <div class="receipt-details">
+                <div class="header">Receipt Details:</div>
+                <ul>
+                    <li><strong>Receipt Number:</strong> {receipt_number}</li>
+                    <li><strong>Date:</strong> {datetime.now().strftime("%d/%m/%Y")}</li>
+                    <li><strong>Purpose:</strong> {purpose or "General Donation"}</li>
+                    <li><strong>Payment Mode:</strong> {payment_mode or "Online"}</li>
+                </ul>
+            </div>
+            
+            <p>The official receipt is attached to this email.</p>
+            
+            <p>Best regards,<br>
+            Accounts Department<br>
+            <strong>{org_data.get('name', 'Our Organization')}</strong></p>
+            
+            <div class="contact-info">
+                <strong>Contact us:</strong><br>
+                Email: <a href="mailto:{org_data.get('email', '')}">{org_data.get('email', '')}</a><br>
+                Phone: <a href="tel:{org_data.get('phone', '')}">{org_data.get('phone', '')}</a><br>
+                {social_text}<br>
+                Address: {org_data.get('office_address', '')}
+            </div>
+        </body>
+        </html>
+        """
+        
+        msg.attach(MIMEText(html_body, 'html', 'utf-8'))
+        
+        # Attach the PDF receipt with proper receipt number filename
+        with open(receipt_path, 'rb') as f:
+            part = MIMEBase('application', 'octet-stream')
+            part.set_payload(f.read())
+            encoders.encode_base64(part)
+            # Use clean receipt number as filename
+            clean_filename = f"{receipt_number.replace('/', '_')}.pdf"
+            part.add_header(
+                'Content-Disposition',
+                f'attachment; filename="{clean_filename}"'
+            )
+            msg.attach(part)
+        
+        # Send the email
+        with smtplib.SMTP_SSL('smtp.gmail.com', 465) as smtp:
+            smtp.login(EMAIL_ADDRESS, EMAIL_PASSWORD)
+            smtp.send_message(msg)
+            
+        return True
+        
+    except Exception as e:
+        print(f"Error sending organization email: {str(e)}")
+        return False

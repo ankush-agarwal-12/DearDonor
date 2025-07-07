@@ -43,8 +43,7 @@ Step-by-step guidance:
 1. Selecting donors
 2. Entering donation details
 3. Choosing payment methods
-4. Setting up recurring donations
-5. Managing receipt options
+4. Managing receipt options
 
 ### 📄 Receipt Management
 Learn about:
@@ -77,8 +76,7 @@ Tips for efficiency:
 1. Record donations promptly
 2. Send receipts immediately
 3. Keep donor info updated
-4. Monitor recurring donations
-5. Regular system checks
+4. Regular system checks
 
 ## Troubleshooting
 

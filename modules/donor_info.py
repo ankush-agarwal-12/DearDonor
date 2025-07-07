@@ -1,6 +1,6 @@
 import streamlit as st
 import pandas as pd
-from modules.supabase_utils import fetch_donors, get_donor_donations, update_donor, delete_donation, delete_donor
+from modules.supabase_utils import fetch_donors, get_donor_donations, update_donor, delete_donation, delete_donor, validate_email_format, generate_receipt_on_demand, send_organization_email_receipt
 import zipfile
 from io import BytesIO
 import os
@@ -10,11 +10,11 @@ import plotly.express as px
 def format_amount(amount):
     return f"₹{amount:,.2f}"
 
-def format_receipt_no(path):
-    """Formats receipt path to show only the number."""
-    if pd.notna(path) and isinstance(path, str):
-        return os.path.splitext(os.path.basename(path))[0]
-    return 'None'
+def format_receipt_no(receipt_no):
+    """Display the full receipt number."""
+    if pd.notna(receipt_no) and isinstance(receipt_no, str) and receipt_no.strip():
+        return receipt_no
+    return 'No Receipt'
 
 def get_financial_year_dates():
     """Get current financial year start and end dates (April 1 to March 31)"""
@@ -237,25 +237,49 @@ def donor_info_view():
                     col1, col2, col3 = st.columns([1, 1, 2])
                     with col1:
                         if st.button("💾 Save Changes", key=f"save_{donor['id']}"):
-                            # Update donor information
-                            update_donor(
-                                st.session_state.editing_donor,
-                                {
+                            try:
+                                # Validate email format if provided
+                                if new_email and not validate_email_format(new_email):
+                                    st.error("❌ Invalid email format. Please enter a valid email address.")
+                                    st.stop()
+                                
+                                # Update donor information
+                                update_data = {
                                     "full_name": new_name,
                                     "email": new_email,
                                     "phone": new_phone,
                                     "address": new_address,
                                     "pan": new_pan,
                                     "donor_type": new_type
-                                },
-                                organization_id=organization_id
-                            )
-                            # Update the selected donor display name in session state
-                            new_display_name = f"{new_name} ({new_email})"
-                            st.session_state.selected_donor_display = new_display_name
-                            del st.session_state.editing_donor
-                            st.success("Donor information updated successfully!")
-                            st.rerun()
+                                }
+                                
+                                success = update_donor(
+                                    st.session_state.editing_donor,
+                                    update_data,
+                                    organization_id=organization_id
+                                )
+                                
+                                if success:
+                                    # Update the selected donor display name in session state
+                                    new_display_name = f"{new_name} ({new_email if new_email else 'No email'})"
+                                    st.session_state.selected_donor_display = new_display_name
+                                    del st.session_state.editing_donor
+                                    st.success("✅ Donor information updated successfully!")
+                                    st.rerun()
+                                else:
+                                    st.error("❌ Failed to update donor information")
+                                    
+                            except ValueError as e:
+                                error_msg = str(e)
+                                if "Email already exists" in error_msg:
+                                    st.error(f"❌ {error_msg}")
+                                    st.info("💡 Each donor must have a unique email address within your organization.")
+                                elif "Invalid email format" in error_msg:
+                                    st.error("❌ Invalid email format. Please enter a valid email address.")
+                                else:
+                                    st.error(f"❌ {error_msg}")
+                            except Exception as e:
+                                st.error(f"❌ An unexpected error occurred: {e}")
                     
                     with col2:
                         if st.button("❌ Cancel", key=f"cancel_{donor['id']}"):
@@ -351,23 +375,100 @@ def donor_info_view():
                     if len(filtered_history_df) != len(history_df):
                         st.info(f"Displaying {len(filtered_history_df)} of {len(history_df)} total donations")
                 
-                # Display as a clean table
+                # Display as a clean table with download buttons
                 if not filtered_history_df.empty:
-                    st.dataframe(
-                        filtered_history_df[['date', 'Amount', 'payment_method', 'Purpose', 'receipt_no']].assign(
-                            date=filtered_history_df['date'].dt.strftime('%d-%m-%Y'),
-                            Amount=filtered_history_df['Amount'].apply(format_amount),
-                            receipt_no=filtered_history_df['receipt_no'].apply(format_receipt_no)
-                        ),
-                        column_config={
-                            "date": "Date",
-                            "Amount": "Amount",
-                            "payment_method": "Payment Method",
-                            "Purpose": "Purpose",
-                            "receipt_no": "Receipt No."
-                        },
-                        hide_index=True
-                    )
+                    # Add headers first
+                    col1, col2, col3, col4, col5, col6, col7 = st.columns([1.3, 1.1, 1.3, 1.8, 1.3, 0.7, 0.7])
+                    with col1:
+                        st.markdown("**Date**")
+                    with col2:
+                        st.markdown("**Amount**")
+                    with col3:
+                        st.markdown("**Payment**")
+                    with col4:
+                        st.markdown("**Purpose**")
+                    with col5:
+                        st.markdown("**Receipt No.**")
+                    with col6:
+                        st.markdown("**Download**")
+                    with col7:
+                        st.markdown("**Email**")
+                    
+                    st.markdown("---")
+                    
+                    # Create rows for each donation
+                    for idx, donation in filtered_history_df.iterrows():
+                        col1, col2, col3, col4, col5, col6, col7 = st.columns([1.3, 1.1, 1.3, 1.8, 1.3, 0.7, 0.7])
+                        
+                        with col1:
+                            st.write(donation['date'].strftime('%d-%m-%Y'))
+                        with col2:
+                            st.write(format_amount(donation['Amount']))
+                        with col3:
+                            st.write(donation['payment_method'])
+                        with col4:
+                            st.write(donation['Purpose'])
+                        with col5:
+                            receipt_no = format_receipt_no(donation['receipt_no'])
+                            st.write(receipt_no)
+                        with col6:
+                            receipt_no = format_receipt_no(donation['receipt_no'])
+                            if receipt_no and receipt_no != 'No Receipt':
+                                # Generate PDF and provide direct download in one click
+                                temp_receipt_path = generate_receipt_on_demand(donation['id'], organization_id)
+                                if temp_receipt_path and os.path.exists(temp_receipt_path):
+                                    with open(temp_receipt_path, 'rb') as file:
+                                        pdf_data = file.read()
+                                        st.download_button(
+                                            label="📥",
+                                            data=pdf_data,
+                                            file_name=f"{receipt_no.replace('/', '_')}.pdf",
+                                            mime="application/pdf",
+                                            key=f"download_{donation['id']}",
+                                            help="Download Receipt PDF"
+                                        )
+                                    # Clean up temporary file immediately
+                                    try:
+                                        os.remove(temp_receipt_path)
+                                    except:
+                                        pass
+                                else:
+                                    st.write("⚠️")
+                            else:
+                                st.write("—")
+                        with col7:
+                            # Email send button
+                            if receipt_no and receipt_no != 'No Receipt' and donor['Email']:
+                                if st.button("📧", key=f"email_{donation['id']}", help="Send Receipt via Email"):
+                                    with st.spinner("Sending email..."):
+                                        # Generate temporary receipt for email
+                                        temp_receipt_path = generate_receipt_on_demand(donation['id'], organization_id)
+                                        if temp_receipt_path and os.path.exists(temp_receipt_path):
+                                            # Send email with organization-specific details
+                                            email_sent = send_organization_email_receipt(
+                                                to_email=donor['Email'],
+                                                donor_name=donor['Full Name'],
+                                                receipt_path=temp_receipt_path,
+                                                amount=str(donation['Amount']),
+                                                receipt_number=receipt_no,
+                                                purpose=donation['Purpose'],
+                                                payment_mode=donation['payment_method'],
+                                                organization_id=organization_id
+                                            )
+                                            # Clean up temporary file
+                                            try:
+                                                os.remove(temp_receipt_path)
+                                            except:
+                                                pass
+                                            
+                                            if email_sent:
+                                                st.success("✅ Email sent!")
+                                            else:
+                                                st.error("❌ Email failed!")
+                                        else:
+                                            st.error("Failed to generate receipt")
+                            else:
+                                st.write("—")
 
                     # Prepare data for export once
                     export_df = filtered_history_df[['date', 'Amount', 'payment_method', 'Purpose', 'receipt_no']].copy()
@@ -375,38 +476,29 @@ def donor_info_view():
                     export_df['receipt_no'] = export_df['receipt_no'].apply(format_receipt_no)
                     export_df.columns = ['Date', 'Amount', 'Payment Method', 'Purpose', 'Receipt No.']
 
-                    # Export buttons
-                    col1, col2 = st.columns(2)
-
-                    with col1:
-                        # Export to CSV
-                        csv_data = export_df.to_csv(index=False).encode('utf-8')
-                        st.download_button(
-                            label="📥 Export to CSV",
-                            data=csv_data,
-                            file_name=f"donation_history_{donor['Full Name'].replace(' ', '_')}_{date_filter.replace(' ', '_')}.csv",
-                            mime='text/csv',
-                            key=f"export_csv_{donor['id']}"
-                        )
-
-                    with col2:
-                        # Export to Excel
-                        output = BytesIO()
-                        with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-                            export_df.to_excel(writer, index=False, sheet_name='Donations')
-                            # Autofit columns for better readability
-                            for i, col in enumerate(export_df.columns):
-                                column_len = max(export_df[col].astype(str).map(len).max(), len(col)) + 2
-                                writer.sheets['Donations'].set_column(i, i, column_len)
-                        
-                        excel_data = output.getvalue()
-                        st.download_button(
-                            label="📊 Export to Excel",
-                            data=excel_data,
-                            file_name=f"donation_history_{donor['Full Name'].replace(' ', '_')}_{date_filter.replace(' ', '_')}.xlsx",
-                            mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-                            key=f"export_excel_{donor['id']}"
-                        )
+                    # Simple Export section
+                    st.markdown("---")
+                    
+                    # Export to Excel only
+                    output = BytesIO()
+                    with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+                        export_df.to_excel(writer, index=False, sheet_name='Donations')
+                        # Autofit columns for better readability
+                        for i, col in enumerate(export_df.columns):
+                            column_len = max(export_df[col].astype(str).map(len).max(), len(col)) + 2
+                            writer.sheets['Donations'].set_column(i, i, column_len)
+                    
+                    export_data = output.getvalue()
+                    file_name = f"donation_history_{donor['Full Name'].replace(' ', '_')}_{date_filter.replace(' ', '_')}.xlsx"
+                    
+                    st.download_button(
+                        label="📤 Export Data",
+                        data=export_data,
+                        file_name=file_name,
+                        mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                        key=f"export_data_{donor['id']}",
+                        use_container_width=True
+                    )
                     
                     # Show filtered statistics
                     if date_filter != "All Time":
@@ -446,7 +538,7 @@ def donor_info_view():
                                     st.success("Donation deleted successfully!")
                                     st.rerun()
                                 else:
-                                    st.error("Failed to delete donation. It may be linked to a recurring plan or already deleted.")
+                                    st.error("Failed to delete donation. Please try again.")
                         with col2:
                             st.info("Click the button to permanently delete this donation.")
                 else:

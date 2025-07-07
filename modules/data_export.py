@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 import calendar
 from dateutil.relativedelta import relativedelta
 import os
-from modules.supabase_utils import fetch_all_donations, fetch_donors, add_donor
+from modules.supabase_utils import fetch_all_donations, fetch_donors, add_donor, validate_email_format, extract_receipt_number_from_path
 import io
 from io import BytesIO
 
@@ -91,21 +91,50 @@ def data_export_view():
                     success_count = 0
                     error_count = 0
                     errors = []
+                    email_validation_errors = []
+                    duplicate_emails = []
                     
                     progress_bar = st.progress(0)
                     status_text = st.empty()
                     
+                    # Pre-validate emails for duplicates within the import file
+                    emails_in_file = []
+                    for index, row in df.iterrows():
+                        email = str(row.get('Email*', '')).strip().lower()
+                        if email and email != '':
+                            if email in emails_in_file:
+                                duplicate_emails.append(f"Row {index + 2}: Duplicate email '{email}' found within import file")
+                            else:
+                                emails_in_file.append(email)
+                    
+                    # Show pre-validation errors
+                    if duplicate_emails:
+                        st.error("❌ Duplicate emails found within import file:")
+                        for error in duplicate_emails:
+                            st.markdown(f"- {error}")
+                        st.info("💡 Please fix duplicate emails in your file before importing.")
+                        return
+                    
                     # Process each row
                     for index, row in df.iterrows():
                         try:
+                            email = str(row.get('Email*', '')).strip()
+                            
+                            # Validate email format if provided
+                            if email and email != '' and not validate_email_format(email):
+                                email_validation_errors.append(f"Row {index + 2}: Invalid email format '{email}'")
+                                error_count += 1
+                                continue
+                            
                             # Add donor using the existing function
                             result = add_donor(
                                 full_name=row['Full Name*'],
-                                email=row['Email*'],
+                                email=email if email != '' else None,
                                 phone=str(row.get('Phone', '')),
                                 address=str(row.get('Address', '')),
                                 pan=str(row.get('PAN', '')),
-                                donor_type=str(row.get('Donor Type', 'Individual'))
+                                donor_type=str(row.get('Donor Type', 'Individual')),
+                                organization_id=organization_id
                             )
                             
                             if result:
@@ -114,6 +143,15 @@ def data_export_view():
                                 error_count += 1
                                 errors.append(f"Row {index + 2}: Failed to add donor {row['Full Name*']}")
                         
+                        except ValueError as e:
+                            error_count += 1
+                            error_msg = str(e)
+                            if "Email already exists" in error_msg:
+                                errors.append(f"Row {index + 2}: {error_msg}")
+                            elif "Invalid email format" in error_msg:
+                                email_validation_errors.append(f"Row {index + 2}: {error_msg}")
+                            else:
+                                errors.append(f"Row {index + 2}: {error_msg}")
                         except Exception as e:
                             error_count += 1
                             errors.append(f"Row {index + 2}: Error - {str(e)}")
@@ -126,11 +164,27 @@ def data_export_view():
                     # Show results
                     if success_count > 0:
                         st.success(f"✅ Successfully imported {success_count} donors")
+                    
                     if error_count > 0:
                         st.error(f"❌ Failed to import {error_count} donors")
-                        st.markdown("### Error Details")
-                        for error in errors:
-                            st.markdown(f"- {error}")
+                        
+                        if email_validation_errors:
+                            st.markdown("### 📧 Email Validation Errors")
+                            for error in email_validation_errors:
+                                st.markdown(f"- {error}")
+                        
+                        if errors:
+                            st.markdown("### 🔄 Import Errors")
+                            for error in errors:
+                                st.markdown(f"- {error}")
+                        
+                        st.info("💡 **Tips for fixing import issues:**")
+                        st.markdown("""
+                        - Ensure all email addresses are unique within your organization
+                        - Check email format (user@domain.com)
+                        - Make sure Full Name and Email columns are properly filled
+                        - Remove any duplicate rows from your file
+                        """)
             
             except Exception as e:
                 st.error(f"Error reading file: {str(e)}")
@@ -224,7 +278,7 @@ def data_export_view():
             'Date': d['date'],
             'Payment Method': d['payment_method'],
             'Purpose': d['Purpose'],  # Using uppercase to match the data structure
-            'Receipt': d.get('receipt_no', '')
+            'Receipt': d.get('receipt_no', '')  # This now contains just the receipt number
         } for d in donations])
         
         # Convert date to datetime
@@ -405,7 +459,7 @@ def data_export_view():
             'Date': pd.to_datetime(d['date']),
             'Payment Method': d['payment_method'],
             'Purpose': d['Purpose'],  # Using uppercase to match the data structure
-            'Receipt': d.get('receipt_no', '')
+            'Receipt': d.get('receipt_no', '')  # This now contains just the receipt number
         } for d in donations])
         
         donors_df = pd.DataFrame([{

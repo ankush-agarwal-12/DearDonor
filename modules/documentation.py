@@ -246,7 +246,6 @@ def documentation_view():
     - Regularly backup your data using the export feature
     - Keep donor information updated
     - Use meaningful descriptions for donations
-    - Regularly check recurring donation schedules
     - Test email templates before sending
     </div>
     """, unsafe_allow_html=True)
@@ -258,8 +257,6 @@ def documentation_view():
     
     **Please Note:**
     - All donation amounts are in INR (₹)
-    - Recurring donations can be modified until the next due date
-    - Cancelled recurring donations cannot be reactivated
     - Keep your email template variables updated
     - Regular data backups are recommended
     </div>
