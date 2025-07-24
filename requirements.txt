@@ -25,3 +25,12 @@ plotly
 openpyxl
 PyMuPDF
 bcrypt
+boto3
+fastapi
+uvicorn
+sqlalchemy
+psycopg2-binary
+pydantic
+pydantic-settings
+python-multipart
+pandas
