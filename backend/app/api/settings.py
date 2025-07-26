@@ -1,12 +1,33 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Body
 from sqlalchemy.orm import Session
 from typing import Dict, Any
+import json
 from app.db.session import get_db
 from app.models.settings import OrganizationSettings
 from app.models.organization import Organization
 from app.core.security import get_current_org
 
 router = APIRouter(prefix="/settings", tags=["Settings"])
+
+# Keys that should be parsed as JSON
+JSON_KEYS = {"receipt_format", "donation_purposes", "payment_methods", "social_media", "signature_holder"}
+
+def parse_setting_value(key: str, value: Any) -> Any:
+    """Parse setting value based on key type"""
+    if key in JSON_KEYS:
+        if isinstance(value, str):
+            try:
+                return json.loads(value)
+            except (json.JSONDecodeError, TypeError):
+                return value
+        return value
+    return value
+
+def serialize_setting_value(key: str, value: Any) -> Any:
+    """Serialize setting value for storage"""
+    if key in JSON_KEYS and not isinstance(value, str):
+        return value  # FastAPI will handle JSON serialization
+    return value
 
 @router.get("/", response_model=Dict[str, Any])
 def get_settings(db: Session = Depends(get_db), org_id: str = Depends(get_current_org)):
@@ -33,9 +54,11 @@ def get_settings(db: Session = Depends(get_db), org_id: str = Depends(get_curren
         "updated_at": org.updated_at,
         "last_login": org.last_login
     }
-    # Get all settings
+    # Get all settings and parse them appropriately
     settings = db.query(OrganizationSettings).filter(OrganizationSettings.organization_id == org_id).all()
-    result = {s.setting_key: s.setting_value for s in settings}
+    result = {}
+    for s in settings:
+        result[s.setting_key] = parse_setting_value(s.setting_key, s.setting_value)
     result["organization"] = org_dict
     return result
 
@@ -58,17 +81,18 @@ def update_settings(
     for key, value in data.items():
         if key == "organization":
             continue
+        serialized_value = serialize_setting_value(key, value)
         setting = db.query(OrganizationSettings).filter(
             OrganizationSettings.organization_id == org_id,
             OrganizationSettings.setting_key == key
         ).first()
         if setting:
-            setting.setting_value = value
+            setting.setting_value = serialized_value
         else:
             setting = OrganizationSettings(
                 organization_id=org_id,
                 setting_key=key,
-                setting_value=value
+                setting_value=serialized_value
             )
             db.add(setting)
     db.commit()
@@ -82,23 +106,37 @@ def get_setting_key(key: str, db: Session = Depends(get_db), org_id: str = Depen
         OrganizationSettings.setting_key == key
     ).first()
     if not setting:
-        raise HTTPException(status_code=404, detail="Setting not found")
-    return setting.setting_value
+        # Return default values for known settings
+        if key == "receipt_format":
+            return {
+                "format": "{prefix}/{YY}/{MM}/{XXX}",
+                "prefix": "REC",
+                "next_sequence": 1
+            }
+        elif key == "donation_purposes":
+            return ["General Fund", "Corpus Fund", "Emergency Fund"]
+        elif key == "payment_methods":
+            return ["Cash", "UPI", "Bank Transfer", "Cheque"]
+        else:
+            raise HTTPException(status_code=404, detail="Setting not found")
+    
+    return parse_setting_value(key, setting.setting_value)
 
 @router.put("/{key}", response_model=Any)
-def update_setting_key(key: str, value: Any, db: Session = Depends(get_db), org_id: str = Depends(get_current_org)):
+def update_setting_key(key: str, value: Any = Body(...), db: Session = Depends(get_db), org_id: str = Depends(get_current_org)):
+    serialized_value = serialize_setting_value(key, value)
     setting = db.query(OrganizationSettings).filter(
         OrganizationSettings.organization_id == org_id,
         OrganizationSettings.setting_key == key
     ).first()
     if setting:
-        setting.setting_value = value
+        setting.setting_value = serialized_value
     else:
         setting = OrganizationSettings(
             organization_id=org_id,
             setting_key=key,
-            setting_value=value
+            setting_value=serialized_value
         )
         db.add(setting)
     db.commit()
-    return value 
+    return parse_setting_value(key, serialized_value) 

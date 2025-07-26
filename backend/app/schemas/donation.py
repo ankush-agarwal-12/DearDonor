@@ -24,10 +24,6 @@ class DonationUpdate(BaseModel):
     purpose: Optional[str]
     payment_mode: Optional[str]
     payment_details: Optional[Dict[str, Any]]
-    receipt_path: Optional[str]
-    receipt_number: Optional[str]
-    email_sent: Optional[bool]
-    whatsapp_sent: Optional[bool]
 
 class DonationResponse(DonationBase):
     id: UUID

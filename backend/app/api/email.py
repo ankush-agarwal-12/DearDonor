@@ -9,7 +9,7 @@ from app.schemas.email_template import OrganizationEmailTemplateCreate, Organiza
 from app.core.security import get_current_org
 from fastapi.responses import JSONResponse
 from modules.pdf_template import generate_receipt
-from modules.supabase_utils import get_organization_settings, get_organization_receipt_number, get_organization_receipt_path
+from modules.supabase_utils import get_organization_settings, get_organization_receipt_path
 from modules.email_utils import send_email_receipt
 from datetime import datetime
 from typing import List

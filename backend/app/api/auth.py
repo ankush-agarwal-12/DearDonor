@@ -6,6 +6,7 @@ from app.core.security import hash_password, verify_password, create_access_toke
 from app.models.organization import Organization
 from app.core.config import get_settings
 from pydantic import BaseModel
+from app.models.email_template import OrganizationEmailTemplate
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
 settings = get_settings()
@@ -40,6 +41,22 @@ def register(org: OrganizationCreate, db: Session = Depends(get_db)):
     db.add(new_org)
     db.commit()
     db.refresh(new_org)
+    # Add default email templates
+    default_template = """Dear {{Name}},\n\nThank you for your generous donation of Rs. {{Amount}} /- ({{AmountInWords}}) to {{orgName}}. Your contribution will help us make a difference in the lives of stray animals.\n\nReceipt Details:\n- Receipt Number: {{receiptNumber}}\n- Date: {{Date}}\n- Purpose: {{Purpose}}\n- Payment Mode: {{PaymentMode}}\n\nThe official receipt is attached to this email.\n\nBest regards,\n{{orgDepartment}}\n{{orgName}}\n\nContact us:\n{{orgEmail}} | {{orgPhone}}\n{{orgSocial}}"""
+    default_subject = "Donation Receipt - Thank You, {{Name}}"
+    db.add(OrganizationEmailTemplate(
+        organization_id=new_org.id,
+        template_type="receipt_template",
+        content=default_template,
+        is_active=True
+    ))
+    db.add(OrganizationEmailTemplate(
+        organization_id=new_org.id,
+        template_type="receipt_subject",
+        content=default_subject,
+        is_active=True
+    ))
+    db.commit()
     token = create_access_token({"org_id": str(new_org.id)})
     return TokenResponse(access_token=token)
 

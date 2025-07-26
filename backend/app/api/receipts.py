@@ -7,7 +7,7 @@ from app.models.donation import Donation
 from app.models.donor import Donor
 from app.core.security import get_current_org
 from modules.pdf_template import generate_receipt, generate_receipt_bytes
-from modules.supabase_utils import get_organization_settings, get_organization_receipt_number, get_organization_receipt_path
+from modules.supabase_utils import get_organization_settings, get_organization_receipt_path
 from datetime import datetime
 from io import BytesIO
 

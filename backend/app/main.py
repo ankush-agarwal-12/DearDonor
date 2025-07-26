@@ -11,7 +11,7 @@ app = FastAPI(title="DearDonor Backend API", version="1.0.0")
 # CORS setup (allow all for now, restrict in prod)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["*"],  # Change to your frontend URL in production
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
