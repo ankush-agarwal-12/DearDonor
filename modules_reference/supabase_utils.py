@@ -6,6 +6,7 @@ import json
 import pandas as pd
 from dateutil.relativedelta import relativedelta
 import re
+import requests
 
 load_dotenv()
 
@@ -542,6 +543,7 @@ def get_organization_settings(organization_id: str) -> dict:
         org_result = supabase.table("organizations").select("*").eq("id", organization_id).execute()
         
         if not org_result.data:
+            print(f"No organization found for ID: {organization_id}")
             return {}
             
         org_data = org_result.data[0]
@@ -552,7 +554,17 @@ def get_organization_settings(organization_id: str) -> dict:
         # Build settings dictionary
         settings = {}
         for setting in settings_result.data:
-            settings[setting['setting_key']] = setting['setting_value']
+            key = setting['setting_key']
+            value = setting['setting_value']
+            # Parse JSON values
+            if key in ['receipt_format', 'donation_purposes', 'payment_methods']:
+                try:
+                    settings[key] = json.loads(value) if isinstance(value, str) else value
+                except:
+                    print(f"Failed to parse JSON for {key}: {value}")
+                    settings[key] = value
+            else:
+                settings[key] = value
         
         # Extract social media and signature holder from JSONB columns
         social_media = org_data.get('social_media', {})
@@ -666,60 +678,59 @@ def save_organization_settings(organization_id: str, settings: dict) -> bool:
         print(f"Error saving organization settings: {str(e)}")
         return False
 
-def get_organization_receipt_number(organization_id: str) -> str:
-    """Generate organization-specific receipt number"""
+def get_organization_settings_via_api(jwt: str) -> dict:
+    """Fetch organization settings from the FastAPI API using the org JWT."""
+    import os
+    api_url = os.getenv("SETTINGS_API_URL", "http://localhost:8000/settings/")
+    headers = {"Authorization": f"Bearer {jwt}", "accept": "application/json"}
     try:
-        if not organization_id:
-            raise ValueError("Organization ID is required")
-            
-        # Get organization settings
-        settings = get_organization_settings(organization_id)
-        receipt_format = settings.get('receipt_format', {
-            'prefix': 'REC',
-            'format': '{prefix}/{YY}/{MM}/{XXX}',
-            'next_sequence': 1
-        })
+        response = requests.get(api_url, headers=headers)
+        response.raise_for_status()
+        return response.json()
+    except Exception as e:
+        print(f"Error fetching org settings from API: {e}")
+        return {}
 
+def get_organization_receipt_number(jwt: str) -> str:
+    """Generate organization-specific receipt number using API settings and org JWT."""
+    import os
+    api_url = os.getenv("SETTINGS_API_URL", "http://localhost:8000/settings/")
+    headers = {"Authorization": f"Bearer {jwt}", "accept": "application/json"}
+    try:
+        settings = get_organization_settings_via_api(jwt)
+        if not settings:
+            raise ValueError(f"No settings found for organization (JWT: {jwt[:8]}...)")
+        receipt_format = settings.get('receipt_format')
+        if not receipt_format:
+            raise ValueError(f"No receipt_format found for organization (JWT: {jwt[:8]}...)")
+        # Ensure next_sequence is int
+        if not isinstance(receipt_format.get('next_sequence'), int):
+            receipt_format['next_sequence'] = 1
         current_date = datetime.now()
         year_short = str(current_date.year)[-2:]
         month = str(current_date.month).zfill(2)
-        
-        # Get last receipt number for this organization
-        last_receipt = get_last_receipt_number(organization_id=organization_id)
-        
         sequence = receipt_format['next_sequence']
-        if last_receipt:
-            # Extract sequence from last receipt
-            pattern = receipt_format['format'].format(
-                prefix=receipt_format['prefix'],
-                YY=year_short,
-                MM=month,
-                XXX=r"(\d+)"
-            ).replace("/", "\\/")
-            
-            match = re.search(pattern, last_receipt)
-            if match:
-                try:
-                    sequence = int(match.group(1)) + 1
-                except ValueError:
-                    sequence = receipt_format['next_sequence']
-        
-        # Generate new receipt number
         receipt_number = receipt_format['format'].format(
             prefix=receipt_format['prefix'],
             YY=year_short,
             MM=month,
             XXX=str(sequence).zfill(3)
         )
-        
-        # Update next sequence in database
+        # Update next sequence in database (call API PUT)
         receipt_format['next_sequence'] = sequence + 1
-        save_organization_settings(organization_id, {'receipt_format': receipt_format})
-        
+        try:
+            put_resp = requests.put(
+                api_url,
+                headers=headers,
+                json={"receipt_format": receipt_format}  # Send as JSON, not string
+            )
+            put_resp.raise_for_status()
+        except Exception as e:
+            print(f"Error updating receipt_format via API: {e}")
         return receipt_number
     except Exception as e:
         print(f"Error generating receipt number: {str(e)}")
-        return f"REC/{year_short}/{month}/001"
+        raise
 
 def get_organization_asset_path(organization_id: str, asset_type: str) -> str:
     """Get organization-specific asset path"""
