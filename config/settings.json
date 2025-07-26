@@ -1,0 +1,42 @@
+{
+    "organization": {
+        "name": "The Stray Army Charitable Organisation",
+        "office_address": "Vishal Store, Opp. Dainik Jagaran Press, Mango, Jamshedpur - 831012",
+        "phone": "0987654321",
+        "email": "thestrayarmy@gmail.com",
+        "website": "www.thestrayarmy.com",
+        "registration_number": "0987TFG",
+        "pan_number": "9876YTGFV",
+        "csr_number": "GTY7U890",
+        "tax_exemption_number": "0987YGV",
+        "social_media": {
+            "facebook": "https://www.facebook.com/thestrayarmy",
+            "instagram": "https://www.instagram.com/thestrayarmy/",
+            "youtube": "https://www.youtube.com/@thestrayarmy"
+        },
+        "signature_holder": {
+            "name": "Keshav",
+            "designation": "Real Boss"
+        }
+    },
+    "donation_purposes": [
+        "General Fund",
+        "Animal Recovery Center",
+        "Corpus Fund",
+        "Food and Shelter",
+        "Emergency Rescue",
+        "Test Donation"
+    ],
+    "payment_methods": [
+        "Cash",
+        "Bank Transfer",
+        "UPI",
+        "Cheque",
+        "Online Payment"
+    ],
+    "receipt_format": {
+        "prefix": "DR",
+        "format": "{prefix}/{YY}/{MM}/{XXX}",
+        "next_sequence": 63
+    }
+}
