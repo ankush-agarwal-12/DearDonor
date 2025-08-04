@@ -543,6 +543,10 @@ def record_donation_view():
                             if send_receipt and donor_options[selected_donor].get("Email"):
                                 status_text.text("Sending email receipt...")
                                 progress_bar.progress(90)
+                                
+                                # Format donation date for email (DD/MM/YYYY)
+                                donation_date_formatted = date.strftime("%d/%m/%Y")
+                                
                                 email_sent = send_email_receipt(
                                     to_email=donor_options[selected_donor]["Email"],
                                     donor_name=donor_options[selected_donor]["Full Name"],
@@ -550,7 +554,9 @@ def record_donation_view():
                                     amount=donor_data["amount"],
                                     receipt_number=receipt_number,
                                     purpose=donor_data["purpose"],
-                                    payment_mode=payment_method
+                                    payment_mode=payment_method,
+                                    donation_date=donation_date_formatted,
+                                    organization_id=organization_id  # Pass organization ID for email config
                                 )
                                 if email_sent:
                                     success_message += "\n📧 Receipt sent via email!"
@@ -850,6 +856,10 @@ def show_donation_form():
                             if send_receipt and donor_options[selected_donor].get("Email"):
                                 status_text.text("Sending email receipt...")
                                 progress_bar.progress(90)
+                                
+                                # Format donation date for email (DD/MM/YYYY)
+                                donation_date_formatted = date.strftime("%d/%m/%Y")
+                                
                                 email_sent = send_email_receipt(
                                     to_email=donor_options[selected_donor]["Email"],
                                     donor_name=donor_options[selected_donor]["Full Name"],
@@ -857,7 +867,9 @@ def show_donation_form():
                                     amount=donor_data["amount"],
                                     receipt_number=receipt_number,
                                     purpose=donor_data["purpose"],
-                                    payment_mode=payment_method
+                                    payment_mode=payment_method,
+                                    donation_date=donation_date_formatted,
+                                    organization_id=organization_id  # Pass organization ID for email config
                                 )
                                 if email_sent:
                                     success_message += "\n📧 Receipt sent via email!"

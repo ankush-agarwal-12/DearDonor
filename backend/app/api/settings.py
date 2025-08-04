@@ -10,7 +10,7 @@ from app.core.security import get_current_org
 router = APIRouter(prefix="/settings", tags=["Settings"])
 
 # Keys that should be parsed as JSON
-JSON_KEYS = {"receipt_format", "donation_purposes", "payment_methods", "social_media", "signature_holder"}
+JSON_KEYS = {"receipt_format", "donation_purposes", "payment_methods", "social_media", "signature_holder", "email_config"}
 
 def parse_setting_value(key: str, value: Any) -> Any:
     """Parse setting value based on key type"""
@@ -117,6 +117,14 @@ def get_setting_key(key: str, db: Session = Depends(get_db), org_id: str = Depen
             return ["General Fund", "Corpus Fund", "Emergency Fund"]
         elif key == "payment_methods":
             return ["Cash", "UPI", "Bank Transfer", "Cheque"]
+        elif key == "email_config":
+            return {
+                "email_address": "",
+                "email_password": "",
+                "smtp_server": "smtp.gmail.com",
+                "smtp_port": 587,
+                "use_tls": True
+            }
         else:
             raise HTTPException(status_code=404, detail="Setting not found")
     

@@ -603,7 +603,14 @@ def get_organization_settings(organization_id: str) -> dict:
                 'next_sequence': 1
             }),
             'donation_purposes': settings.get('donation_purposes', ['General Fund', 'Corpus Fund', 'Emergency Fund']),
-            'payment_methods': settings.get('payment_methods', ['Cash', 'UPI', 'Bank Transfer', 'Cheque'])
+            'payment_methods': settings.get('payment_methods', ['Cash', 'UPI', 'Bank Transfer', 'Cheque']),
+            'email_config': settings.get('email_config', {
+                'email_address': '',
+                'email_password': '',
+                'smtp_server': 'smtp.gmail.com',
+                'smtp_port': 587,
+                'use_tls': True
+            })
         }
         
         print(f"Debug: Successfully loaded settings for organization {organization_id}")
