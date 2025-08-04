@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-from playwright.sync_api import sync_playwright
+from weasyprint import HTML, CSS
 import os
 import tempfile
 import shutil
@@ -8,8 +8,6 @@ from num2words import num2words
 import base64
 import boto3
 import sys
-from pathlib import Path
-import PyPDF2
 
 # Add the backend app path to import settings
 backend_dir = os.path.dirname(os.path.dirname(__file__))
@@ -313,113 +311,32 @@ def get_financial_year(date_str):
 
 def combine_html_to_pdf(html_files, output_pdf, base_path=None):
     """
-    Render each HTML in html_files using Playwright, concatenate their pages, 
+    Render each HTML in html_files, concatenate their pages, 
     and write out a single PDF at output_pdf.
     """
-    print(f"🚀 Starting PDF generation with Playwright for {len(html_files)} HTML files")
-    
-    temp_pdfs = []
+    # Change to base_path if provided to resolve relative URLs
+    original_cwd = os.getcwd()
+    if base_path:
+        os.chdir(base_path)
+        print(f"Changed working directory to: {base_path}")
     
     try:
-        with sync_playwright() as p:
-            # Launch browser in headless mode
-            browser = p.chromium.launch(headless=True)
-            page = browser.new_page()
-            
-            # Process each HTML file
-            for i, html_file in enumerate(html_files):
-                print(f"📄 Processing HTML file {i+1}/{len(html_files)}: {html_file}")
-                
-                # Convert to absolute path and file:// URL
-                if base_path:
-                    # If HTML file is relative to base_path, make it absolute
-                    if not os.path.isabs(html_file):
-                        html_file = os.path.join(base_path, html_file)
-                
-                html_path = os.path.abspath(html_file)
-                file_url = Path(html_path).as_uri()
-                
-                print(f"📂 Loading: {file_url}")
-                
-                # Load the HTML file
-                page.goto(file_url, wait_until="networkidle")
-                
-                # Wait a bit for any remaining CSS/fonts to load
-                page.wait_for_timeout(1000)  # 1 second
-                
-                # Generate temporary PDF for this HTML
-                temp_pdf = tempfile.NamedTemporaryFile(suffix='.pdf', delete=False)
-                temp_pdf_path = temp_pdf.name
-                temp_pdf.close()
-                
-                # Generate PDF with proper dimensions (2000x1414 as per your templates)
-                page.pdf(
-                    path=temp_pdf_path,
-                    width="2000px", 
-                    height="1414px",
-                    print_background=True,
-                    prefer_css_page_size=True,
-                    margin={
-                        "top": "0px",
-                        "bottom": "0px", 
-                        "left": "0px",
-                        "right": "0px"
-                    }
-                )
-                
-                temp_pdfs.append(temp_pdf_path)
-                print(f"✅ Generated temporary PDF: {temp_pdf_path}")
-            
-            browser.close()
-        
-        # Combine all PDFs into one
-        if len(temp_pdfs) == 1:
-            # Only one PDF, just copy it
-            shutil.copy2(temp_pdfs[0], output_pdf)
-            print(f"📄 Single PDF copied to: {output_pdf}")
-        else:
-            # Multiple PDFs, combine them
-            print(f"🔗 Combining {len(temp_pdfs)} PDFs into one...")
-            combine_pdfs(temp_pdfs, output_pdf)
-        
-        print(f"📄✅ Successfully generated combined PDF: {output_pdf}")
-        
-    except Exception as e:
-        print(f"❌ Error generating PDF with Playwright: {str(e)}")
-        import traceback
-        print(f"Full traceback: {traceback.format_exc()}")
-        raise
-        
-    finally:
-        # Clean up temporary PDFs
-        for temp_pdf in temp_pdfs:
-            try:
-                if os.path.exists(temp_pdf):
-                    os.unlink(temp_pdf)
-                    print(f"🗑️ Cleaned up temp PDF: {temp_pdf}")
-            except Exception as e:
-                print(f"⚠️ Warning: Could not delete temp PDF {temp_pdf}: {e}")
+        # Render the first document
+        print(f"Rendering first HTML: {html_files[0]}")
+        base_doc = HTML(html_files[0]).render()
 
-def combine_pdfs(pdf_files, output_path):
-    """Combine multiple PDF files into one using PyPDF2"""
-    try:
-        pdf_merger = PyPDF2.PdfMerger()
-        
-        for pdf_file in pdf_files:
-            print(f"📎 Adding PDF to merger: {pdf_file}")
-            with open(pdf_file, 'rb') as f:
-                pdf_merger.append(f)
-        
-        # Write the combined PDF
-        with open(output_path, 'wb') as output_file:
-            pdf_merger.write(output_file)
-        
-        pdf_merger.close()
-        print(f"🔗✅ Successfully combined {len(pdf_files)} PDFs into: {output_path}")
-        
-    except Exception as e:
-        print(f"❌ Error combining PDFs: {str(e)}")
-        raise
+        # Render and append all subsequent docs
+        for path in html_files[1:]:
+            print(f"Rendering additional HTML: {path}")
+            next_doc = HTML(path).render()
+            base_doc.pages.extend(next_doc.pages)
+
+        # Write combined PDF
+        base_doc.write_pdf(target=output_pdf)
+        print(f"📄 Generated {output_pdf}")
+    finally:
+        # Restore original working directory
+        os.chdir(original_cwd)
 
 def generate_receipt_pdf(donor_data, org_data, donation_data, donor_type="Individual", organization_id=None):
     """
