@@ -1,0 +1,199 @@
+/*──────────────────────────────────────────────────────────────────────────────
+  FONTS
+──────────────────────────────────────────────────────────────────────────────*/
+
+@page {
+  size: 2000px 1414px;
+  margin: 0;
+}
+@font-face {
+    font-family: "Open Sans";
+    src: url("assets/OpenSans-Regular.ttf") format("truetype");
+    font-weight: 400;
+  }
+  @font-face {
+    font-family: "Open Sans";
+    src: url("assets/OpenSans-ExtraBold.ttf") format("truetype");
+    font-weight: 800;
+  }
+  @font-face {
+    font-family: "Balgin Text";
+    src: url("assets/Balgin-Extra-Light.ttf") format("opentype");
+    font-weight: 400;
+  }
+  @font-face {
+    font-family: "Carollo Script";
+    src: url("assets/Carollo_Playscript_Regular.otf") format("opentype");
+  }
+  @font-face {
+    font-family: "Architects Daughter";
+    src: url("assets/ArchitectsDaughter-Regular.ttf") format("truetype");
+  }
+  
+  /*──────────────────────────────────────────────────────────────────────────────
+    PAGE SETUP & BACKGROUND
+  ──────────────────────────────────────────────────────────────────────────────*/
+  body {
+    margin: 0;
+    padding: 0;
+    background: #fff;
+  }
+  
+  .receipt-page {
+    position: relative;
+    width: 2000px;
+    height: 1414px;
+    padding: 100px 120px;
+    box-sizing: border-box;
+    background: url("assets/receipt_bg.png") no-repeat top left;
+    background-size: 100% 100%;
+  }
+  
+  /*──────────────────────────────────────────────────────────────────────────────
+    HEADER
+  ──────────────────────────────────────────────────────────────────────────────*/
+  .header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 20px;
+  }
+  
+  .trust h1 {
+    margin: 0;
+    font-family: "Open Sans";
+    font-weight: 800;
+    font-size: 64px;
+    text-transform: uppercase;
+  }
+  
+  .trust p {
+    margin: 8px 0 0;
+    font-family: "Open Sans";
+    font-weight: 400;
+    font-size: 28px;
+  }
+  
+  .thank-you {
+    font-family: "Carollo Script";
+    font-size: 72px;
+    line-height: 1;
+    margin-top: 8px;
+  }
+  
+  /*──────────────────────────────────────────────────────────────────────────────
+    RECEIPT INFO
+  ──────────────────────────────────────────────────────────────────────────────*/
+  .receipt-info {
+    display: flex;
+    justify-content: space-between;
+    font-family: "Open Sans";
+    font-weight: 400;
+    font-size: 30px;
+    line-height: 1.4;
+    margin-bottom: 10px;
+  }
+  
+  .ri-left p,
+  .ri-right p {
+    margin: 4px 0;
+  }
+  
+  /*──────────────────────────────────────────────────────────────────────────────
+    DIVIDER LINE
+  ──────────────────────────────────────────────────────────────────────────────*/
+  .divider {
+    border: none;
+    border-top: 2px solid #000;
+    margin: 0 0 40px;
+  }
+  
+  /*──────────────────────────────────────────────────────────────────────────────
+    CENTER FIELDS
+  ──────────────────────────────────────────────────────────────────────────────*/
+  .fields {
+    font-family: "Balgin Text";
+    font-size: 32px;
+    line-height: 2;
+    margin-bottom: 120px;
+  }
+  
+  .fields p {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin: 0 0 8px;
+  }
+  
+  .fields p.multiline {
+    display: block;
+  }
+  
+  .fields p strong {
+    /* optional synthetic bold */
+    font-weight: 700;
+  }
+  
+  .fields .underline {
+    flex: 1;
+    margin-left: 20px;
+    padding-bottom: 0px; /* reduced padding to reduce floaty feel */
+    border-bottom: 3px dotted #333;
+    box-sizing: border-box;
+    min-width: 300px;
+  }
+  
+  .fields .towards,
+  .fields .pan {
+    margin-left: 40px;
+  }
+  
+  /*──────────────────────────────────────────────────────────────────────────────
+    SIGNATURE
+  ──────────────────────────────────────────────────────────────────────────────*/
+  .signature-line {
+    position: absolute;
+    bottom: 220px;
+    right: 170px;
+    width: 300px;
+    text-align: center;
+  }
+  
+  .signature-img {
+    max-height: 80px;
+    display: block;
+    margin: 0 auto 4px;
+  }
+  
+  .sig-line {
+    font-size: 28px;
+    margin-bottom: 8px;
+  }
+  
+  .sig-title {
+    font-family: "Architects Daughter";
+    font-size: 26px;
+    font-style: normal;
+  }
+  .divider_bottom {
+    position: absolute;
+    bottom: 190px;    /* same baseline as your footer-note */
+    width: 90%;
+    border: none;
+    border-top: 2px solid #000;
+  }
+  
+  /*──────────────────────────────────────────────────────────────────────────────
+    FOOTER NOTE
+  ──────────────────────────────────────────────────────────────────────────────*/
+  .footer-note {
+    position: absolute;
+    bottom: 80px;
+    left: 120px;
+    font-family: "Open Sans";
+    font-weight: 400;
+    font-size: 20px;
+    line-height: 1.4;
+    color: #444;
+  }
+  

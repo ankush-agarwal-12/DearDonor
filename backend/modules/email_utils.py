@@ -10,8 +10,43 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from email.mime.base import MIMEBase
 from email import encoders
+from .supabase_utils import get_organization_settings
 
 load_dotenv()
+
+# Fallback email configuration from environment (for backward compatibility)
+FALLBACK_EMAIL_ADDRESS = os.getenv("EMAIL_ADDRESS", "your-email@gmail.com")
+FALLBACK_EMAIL_PASSWORD = os.getenv("EMAIL_PASSWORD", "your-app-password")
+FALLBACK_SMTP_SERVER = os.getenv("SMTP_SERVER", "smtp.gmail.com")
+FALLBACK_SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
+
+def get_email_config(organization_id=None):
+    """Get email configuration for organization"""
+    if organization_id:
+        try:
+            org_settings = get_organization_settings(organization_id)
+            email_config = org_settings.get('email_config', {})
+            
+            # Return config if properly configured
+            if email_config.get('email_address') and email_config.get('email_password'):
+                return {
+                    'email_address': email_config.get('email_address'),
+                    'email_password': email_config.get('email_password'),
+                    'smtp_server': email_config.get('smtp_server', 'smtp.gmail.com'),
+                    'smtp_port': email_config.get('smtp_port', 587),
+                    'use_tls': email_config.get('use_tls', True)
+                }
+        except Exception as e:
+            print(f"Error getting organization email config: {e}")
+    
+    # Fallback to environment variables
+    return {
+        'email_address': FALLBACK_EMAIL_ADDRESS,
+        'email_password': FALLBACK_EMAIL_PASSWORD,
+        'smtp_server': FALLBACK_SMTP_SERVER,
+        'smtp_port': FALLBACK_SMTP_PORT,
+        'use_tls': True
+    }
 
 def load_org_settings():
     """Load organization settings from config file"""
@@ -49,26 +84,22 @@ def load_org_settings():
     except Exception as e:
         print(f"Error loading organization settings: {str(e)}")
         return {
-            'name': os.getenv("ORG_NAME", "Your Organization Name"),
+            'name': 'Your Organization Name',
             'department': 'Accounts Department',
-            'email': os.getenv("ORG_EMAIL", "your-email@gmail.com"),
-            'phone': os.getenv("ORG_PHONE", "+91 1234567890"),
-            'website': os.getenv("ORG_WEBSITE", "www.example.com"),
-            'registration_number': os.getenv("ORG_REG_NO", ""),
-            'pan_number': os.getenv("ORG_PAN", ""),
-            'csr_number': os.getenv("ORG_CSR", ""),
-            'tax_exemption_number': os.getenv("ORG_TAX_EXEMPT", ""),
-            'office_address': os.getenv("ORG_ADDRESS", ""),
-            'social': "Follow us on social media"
+            'email': 'your-email@gmail.com',
+            'phone': '+91 1234567890',
+            'website': 'www.example.com',
+            'registration_number': '',
+            'pan_number': '',
+            'csr_number': '',
+            'tax_exemption_number': '',
+            'office_address': '',
+            'social': 'Follow us on social media'
         }
 
-# Get organization details - reload on each use to get latest settings
 def get_org_details():
+    """Legacy function for backward compatibility"""
     return load_org_settings()
-
-# Email settings
-EMAIL_ADDRESS = os.getenv("EMAIL_ADDRESS", "your-email@gmail.com")
-EMAIL_PASSWORD = os.getenv("EMAIL_PASSWORD", "your-app-password")
 
 def convert_to_html(text, org_details):
     """Convert plain text email to HTML with proper formatting"""
@@ -140,21 +171,58 @@ def get_subject():
         with open('config/email_subject.txt', 'r') as f:
             return f.read().strip()
     except:
-        return "Donation Receipt - Thank You, {{Name}}"
+        return "Thank you for your donation - {{Name}}"
 
-def save_template(template, subject):
-    """Save the email template and subject to file"""
-    os.makedirs('config', exist_ok=True)
-    
+def save_email_template(template):
+    """Save email template content to file"""
     with open('config/email_template.txt', 'w') as f:
         f.write(template)
-    
+
+def load_email_template():
+    """Load email template from file"""
+    try:
+        with open('config/email_template.txt', 'r') as f:
+            return f.read()
+    except FileNotFoundError:
+        return """Dear {{Name}},
+
+Thank you for your generous donation of Rs. {{Amount}} /- ({{AmountInWords}}) to {{orgName}}. Your contribution will help us make a difference in the lives of stray animals.
+
+Receipt Details:
+- Receipt Number: {{receiptNumber}}
+- Date: {{Date}}
+- Purpose: {{Purpose}}
+- Payment Mode: {{PaymentMode}}
+
+The official receipt is attached to this email.
+
+Best regards,
+{{orgDepartment}}
+{{orgName}}
+
+Contact us:
+{{orgEmail}} | {{orgPhone}}
+{{orgSocial}}"""
+
+def save_email_subject(subject):
+    """Save email subject template to file"""
     with open('config/email_subject.txt', 'w') as f:
         f.write(subject)
 
-def send_email_receipt(to_email, donor_name, receipt_path, amount, receipt_number="", purpose="", payment_mode="", org_details=None, **kwargs):
+def load_email_subject():
+    """Load email subject template from file"""
+    try:
+        with open('config/email_subject.txt', 'r') as f:
+            return f.read()
+    except FileNotFoundError:
+        return "Thank you for your donation - {{Name}}"
+
+def send_email_receipt(to_email, donor_name, receipt_path, amount, receipt_number="", purpose="", payment_mode="", org_details=None, donation_date=None, organization_id=None, **kwargs):
     """Send donation receipt email using the template. Accepts org_details dict for organization info."""
     try:
+        # Get email configuration for the organization
+        email_config = get_email_config(organization_id)
+        
         # Use provided org_details or fallback to legacy config
         if org_details is None:
             org_details = get_org_details()
@@ -170,7 +238,7 @@ def send_email_receipt(to_email, donor_name, receipt_path, amount, receipt_numbe
         social_text = " | ".join(social_links) if social_links else "Follow us on social media"
         # Create message container
         msg = MIMEMultipart('alternative')
-        msg['From'] = EMAIL_ADDRESS
+        msg['From'] = email_config['email_address']
         msg['To'] = to_email
         # Get and format subject line
         subject_template = get_subject()
@@ -183,11 +251,18 @@ def send_email_receipt(to_email, donor_name, receipt_path, amount, receipt_numbe
             amount_in_words = num2words(float(amount), lang='en_IN').title()
         except:
             amount_in_words = str(amount)
+        
+        # Use provided donation_date or fall back to today's date
+        if donation_date:
+            formatted_date = donation_date  # Already formatted as DD/MM/YYYY from calling function
+        else:
+            formatted_date = datetime.now().strftime("%d/%m/%Y")
+            
         # Format the template with proper line breaks
         email_body = template.replace("{{Name}}", donor_name)\
                             .replace("{{Amount}}", str(amount))\
                             .replace("{{AmountInWords}}", amount_in_words)\
-                            .replace("{{Date}}", datetime.now().strftime("%d/%m/%Y"))\
+                            .replace("{{Date}}", formatted_date)\
                             .replace("{{receiptNumber}}", receipt_number)\
                             .replace("{{Purpose}}", purpose or "General Donation")\
                             .replace("{{PaymentMode}}", payment_mode or "Online")\
@@ -211,10 +286,21 @@ def send_email_receipt(to_email, donor_name, receipt_path, amount, receipt_numbe
                 f'attachment; filename="{os.path.basename(receipt_path)}"'
             )
             msg.attach(part)
-        # Send the email
-        with smtplib.SMTP_SSL('smtp.gmail.com', 465) as smtp:
-            smtp.login(EMAIL_ADDRESS, EMAIL_PASSWORD)
-            smtp.send_message(msg)
+        
+        # Send the email using organization-specific SMTP settings
+        print(f"Sending email from {email_config['email_address']} via {email_config['smtp_server']}:{email_config['smtp_port']}")
+        
+        if email_config['use_tls']:
+            with smtplib.SMTP(email_config['smtp_server'], email_config['smtp_port']) as smtp:
+                smtp.starttls()
+                smtp.login(email_config['email_address'], email_config['email_password'])
+                smtp.send_message(msg)
+        else:
+            with smtplib.SMTP_SSL(email_config['smtp_server'], email_config['smtp_port']) as smtp:
+                smtp.login(email_config['email_address'], email_config['email_password'])
+                smtp.send_message(msg)
+        
+        print(f"✅ Email sent successfully to {to_email}")
         return True
     except Exception as e:
         print(f"Error sending email: {str(e)}")

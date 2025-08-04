@@ -542,9 +542,13 @@ def get_organization_settings(organization_id: str) -> dict:
         org_result = supabase.table("organizations").select("*").eq("id", organization_id).execute()
         
         if not org_result.data:
+            print(f"Warning: No organization found for ID {organization_id}")
             return {}
             
         org_data = org_result.data[0]
+        if org_data is None:
+            print(f"Warning: Organization data is None for ID {organization_id}")
+            return {}
         
         # Get organization settings
         settings_result = supabase.table("organization_settings").select("*").eq("organization_id", organization_id).execute()
@@ -554,41 +558,43 @@ def get_organization_settings(organization_id: str) -> dict:
         for setting in settings_result.data:
             settings[setting['setting_key']] = setting['setting_value']
         
-        # Extract social media and signature holder from JSONB columns
-        social_media = org_data.get('social_media', {})
+        # Extract social media and signature holder from JSONB columns with safety checks
+        social_media = org_data.get('social_media', {}) if org_data else {}
         if isinstance(social_media, str):
             try:
                 social_media = json.loads(social_media)
-            except:
+            except Exception as e:
+                print(f"Warning: Failed to parse social_media JSON for org {organization_id}: {e}")
                 social_media = {}
         
-        signature_holder = org_data.get('signature_holder', {})
+        signature_holder = org_data.get('signature_holder', {}) if org_data else {}
         if isinstance(signature_holder, str):
             try:
                 signature_holder = json.loads(signature_holder)
-            except:
+            except Exception as e:
+                print(f"Warning: Failed to parse signature_holder JSON for org {organization_id}: {e}")
                 signature_holder = {}
         
         # Combine organization data with settings
         org_settings = {
             'organization': {
-                'name': org_data.get('name', ''),
-                'office_address': org_data.get('office_address', ''),
-                'phone': org_data.get('phone', ''),
-                'email': org_data.get('email', ''),
-                'website': org_data.get('website', ''),
-                'registration_number': org_data.get('registration_number', ''),
-                'pan_number': org_data.get('pan_number', ''),
-                'csr_number': org_data.get('csr_number', ''),
-                'tax_exemption_number': org_data.get('tax_exemption_number', ''),
+                'name': org_data.get('name', '') if org_data else '',
+                'office_address': org_data.get('office_address', '') if org_data else '',
+                'phone': org_data.get('phone', '') if org_data else '',
+                'email': org_data.get('email', '') if org_data else '',
+                'website': org_data.get('website', '') if org_data else '',
+                'registration_number': org_data.get('registration_number', '') if org_data else '',
+                'pan_number': org_data.get('pan_number', '') if org_data else '',
+                'csr_number': org_data.get('csr_number', '') if org_data else '',
+                'tax_exemption_number': org_data.get('tax_exemption_number', '') if org_data else '',
                 'social_media': {
-                    'facebook': social_media.get('facebook', ''),
-                    'instagram': social_media.get('instagram', ''),
-                    'youtube': social_media.get('youtube', '')
+                    'facebook': social_media.get('facebook', '') if social_media else '',
+                    'instagram': social_media.get('instagram', '') if social_media else '',
+                    'youtube': social_media.get('youtube', '') if social_media else ''
                 },
                 'signature_holder': {
-                    'name': signature_holder.get('name', ''),
-                    'designation': signature_holder.get('designation', '')
+                    'name': signature_holder.get('name', '') if signature_holder else '',
+                    'designation': signature_holder.get('designation', '') if signature_holder else ''
                 }
             },
             'receipt_format': settings.get('receipt_format', {
@@ -597,12 +603,23 @@ def get_organization_settings(organization_id: str) -> dict:
                 'next_sequence': 1
             }),
             'donation_purposes': settings.get('donation_purposes', ['General Fund', 'Corpus Fund', 'Emergency Fund']),
-            'payment_methods': settings.get('payment_methods', ['Cash', 'UPI', 'Bank Transfer', 'Cheque'])
+            'payment_methods': settings.get('payment_methods', ['Cash', 'UPI', 'Bank Transfer', 'Cheque']),
+            'email_config': settings.get('email_config', {
+                'email_address': '',
+                'email_password': '',
+                'smtp_server': 'smtp.gmail.com',
+                'smtp_port': 587,
+                'use_tls': True
+            })
         }
         
+        print(f"Debug: Successfully loaded settings for organization {organization_id}")
         return org_settings
     except Exception as e:
-        print(f"Error getting organization settings: {str(e)}")
+        print(f"Error getting organization settings for {organization_id}: {str(e)}")
+        print(f"Error type: {type(e).__name__}")
+        import traceback
+        print(f"Full traceback: {traceback.format_exc()}")
         return {}
 
 def save_organization_settings(organization_id: str, settings: dict) -> bool:
