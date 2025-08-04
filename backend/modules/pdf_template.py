@@ -310,12 +310,45 @@ def generate_receipt(donor_data, output_path, organization_id=None):
 
 def generate_receipt_bytes(donor_data, organization_id=None):
     """Generate a donation receipt PDF and return as bytes (in-memory, no disk write)."""
+    # Default organization data to prevent KeyError
+    default_org_data = {
+        'name': 'Organization Name Not Set',
+        'office_address': 'Address Not Set',
+        'phone': 'Phone Not Set',
+        'email': 'Email Not Set',
+        'website': 'Website Not Set',
+        'registration_number': 'Registration Number Not Set',
+        'pan_number': 'PAN Not Set',
+        'csr_number': 'CSR Not Set',
+        'tax_exemption_number': 'Tax Exemption Not Set',
+        'social_media': {
+            'facebook': '',
+            'instagram': '',
+            'youtube': ''
+        },
+        'signature_holder': {
+            'name': 'Signature Holder Name Not Set',
+            'designation': 'Designation Not Set'
+        }
+    }
+    
     # Load organization settings from database
     if organization_id:
-        org_settings = get_organization_settings(organization_id)
-        org_data = org_settings.get('organization', {})
-        if not org_data.get('signature_holder'):
-            org_data['signature_holder'] = DEFAULT_RECEIPT_SETTINGS['signature_holder']
+        try:
+            org_settings = get_organization_settings(organization_id)
+            org_data = org_settings.get('organization', {})
+            
+            # Merge with defaults to ensure all required fields exist
+            merged_org_data = default_org_data.copy()
+            merged_org_data.update(org_data)
+            org_data = merged_org_data
+            
+            if not org_data.get('signature_holder'):
+                org_data['signature_holder'] = DEFAULT_RECEIPT_SETTINGS['signature_holder']
+                
+        except Exception as e:
+            print(f"Error loading organization settings for {organization_id}: {str(e)}")
+            org_data = default_org_data
     else:
         try:
             with open('config/settings.json', 'r') as f:
@@ -324,9 +357,10 @@ def generate_receipt_bytes(donor_data, organization_id=None):
                 if 'signature_holder' not in org_data:
                     org_data['signature_holder'] = DEFAULT_RECEIPT_SETTINGS['signature_holder']
                 if not org_data:
-                    org_data = DEFAULT_RECEIPT_SETTINGS
+                    org_data = default_org_data
         except:
-            org_data = DEFAULT_RECEIPT_SETTINGS
+            org_data = default_org_data
+    
     # Create receipt with organization ID for asset paths
     receipt = DonationReceipt(donor_data, org_data)
     if organization_id:

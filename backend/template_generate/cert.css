@@ -1,0 +1,188 @@
+/*──────────────────────────────────────────────────────────────────────────────
+  FONTS
+──────────────────────────────────────────────────────────────────────────────*/
+@page {
+  size: 2000px 1500px;
+  margin: 0;
+}
+@font-face {
+  font-family: "Open Sans";
+  src: url("assets/OpenSans-Regular.ttf") format("truetype");
+  font-weight: 400;
+}
+@font-face {
+  font-family: "Open Sans";
+  src: url("assets/OpenSans-ExtraBold.ttf") format("truetype");
+  font-weight: 800;
+}
+@font-face {
+  font-family: "IBM Plex Sans";
+  src: url("assets/IBMPlexSans-VariableFont_wdth,wght.ttf") format("truetype");
+}
+
+/*──────────────────────────────────────────────────────────────────────────────
+  PAGE SETUP (2000×1414)
+──────────────────────────────────────────────────────────────────────────────*/
+body {
+  margin: 0;
+  padding: 0;
+  background: #fff;
+}
+.receipt-page {
+  position: relative;
+  width: 2000px;
+  height: 1414px;
+  padding: 100px 120px;
+  box-sizing: border-box;
+  font-family: "IBM Plex Sans", sans-serif;
+}
+
+/*──────────────────────────────────────────────────────────────────────────────
+  HEADER
+──────────────────────────────────────────────────────────────────────────────*/
+.cert-header {
+  display: flex;
+  align-items: center;
+}
+.logo-circle {
+  width: 180px;
+  height: 180px;
+  border-radius: 50%;
+  background: #e0d8cd;
+  border: 2px solid #bbb;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+.logo-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.header-text {
+  margin-left: 40px;
+}
+.header-text h1 {
+  margin: 0;
+  font-family: "Open Sans";
+  font-weight: 800;
+  font-size: 64px;
+}
+.header-text .reg-info,
+.header-text .address-line,
+.header-text .numbers-line {
+  margin: 8px 0;
+  font-family: "Open Sans";
+  font-weight: 400;
+  font-size: 28px;
+}
+.header-text .numbers-line {
+  display: flex;
+  gap: 40px;
+}
+.header-text strong {
+  font-weight: 600;
+}
+.contact-icons {
+  font-family: "Open Sans", sans-serif;
+  font-size: 28px;
+  margin-top: 8px;
+  align-items: center;
+  gap: 12px;
+}
+.contact-icons .icon {
+  font-size: 32px;
+  margin-right: 8px;
+  margin-left: 15px;
+  filter: none; /* ensure black */
+}
+.header-divider {
+  border: none;
+  border-top: 2px solid #ccc;
+  margin: 30px 0;
+}
+
+/*──────────────────────────────────────────────────────────────────────────────
+  PLACEHOLDERS
+──────────────────────────────────────────────────────────────────────────────*/
+.underline {
+  border-bottom: 3px dotted #333;
+}
+.ph-short  { width: 200px; }
+.ph-medium { width: 300px; }
+.ph-long   { width: 600px; }
+
+/*──────────────────────────────────────────────────────────────────────────────
+  META / TITLE / BODY
+──────────────────────────────────────────────────────────────────────────────*/
+.cert-meta p {
+  margin: 8px 0;
+  font-size: 30px;
+}
+.cert-title {
+  text-align: center;
+  font-size: 36px;
+  font-weight: 600;
+  margin: 40px 0 20px;
+  text-decoration: underline;
+}
+.cert-body {
+  font-size: 30px;
+  line-height: 1.4;
+  margin: 20px 0;
+}
+.nowrap {
+  white-space: nowrap;
+}
+
+/*──────────────────────────────────────────────────────────────────────────────
+  DETAILS TABLE
+──────────────────────────────────────────────────────────────────────────────*/
+.cert-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 20px 0;
+}
+.cert-table th,
+.cert-table td {
+  border: 2px solid #5a7fb1;      /* darker blue */
+  padding: 12px;
+  text-align: center;
+  font-size: 28px;
+}
+.cert-table th {
+  font-weight: 700;
+}
+.cert-table thead {
+  background: #dde4f0;            /* prominent blue */
+}
+
+/*──────────────────────────────────────────────────────────────────────────────
+  SIGN-OFF
+──────────────────────────────────────────────────────────────────────────────*/
+.cert-signoff {
+  margin: 30px 0 10px;
+  font-size: 30px;
+}
+.signature-block {
+  margin-top: 20px;
+}
+.signature-block img {
+  max-height: 80px;
+}
+.signatory-name,
+.signatory-designation {
+  margin: 4px 0;
+  font-size: 28px;
+}
+
+/*──────────────────────────────────────────────────────────────────────────────
+  POWERED BY
+──────────────────────────────────────────────────────────────────────────────*/
+.powered-by {
+  position: absolute;
+  bottom: 40px;
+  right: 60px;
+  font-size: 24px;
+  color: #888;
+  font-style: italic;
+}

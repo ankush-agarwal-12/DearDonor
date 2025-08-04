@@ -1,0 +1,110 @@
+@page {
+    size: 2000px 1414px;
+    margin: 0;
+  }
+
+@font-face {
+    font-family: 'ScriptFont';
+    src: url('assets/JimmyScript-Rg.otf');
+}
+@font-face {
+    font-family: 'BodyFont';
+    src: url('assets/Carollo_Playscript_Regular.otf');
+}
+
+body {
+    margin: 0;
+    padding: 0;
+    font-family: 'BodyFont', serif;
+    background-color: white;
+}
+
+.page {
+    width: 2000px;
+    height: 1414px;
+    background: url('assets/background.png') no-repeat center center;
+    background-size: 100% 100%;
+    box-sizing: border-box;
+    padding: 100px 120px 120px 120px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+}
+
+.header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+}
+
+.logo-circle {
+    width: 100px;
+    height: 100px;
+    background-color: #d9c3b8;
+    border-radius: 50%;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.logo {
+    width: 80%;
+    height: 80%;
+    object-fit: contain;
+}
+
+.trust-name {
+    font-size: 40px;
+    font-weight: bold;
+    margin-top: 10px;
+    color: #000;
+}
+
+.content {
+    flex: 1;
+    margin-top: 60px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.content-inner {
+    max-width: 1600px;
+    width: 100%;
+    text-align: left;
+}
+
+.content h3 {
+    font-weight: bold;
+    font-size: 48px;
+    margin-bottom: 20px;
+    color: #000;
+}
+
+.content h1 {
+    font-family: 'ScriptFont';
+    font-size: 140px;
+    color: #4e6b36;
+    text-align: center;
+    margin: 20px 0 40px 0;
+}
+
+.content p {
+    font-size: 38px;
+    margin-bottom: 24px;
+    line-height: 1.55;
+    color: #000;
+    word-break: break-word;
+}
+
+.footer {
+    font-size: 36px;
+    color: #82916d;
+    text-align: right;
+}
+
+.footer strong {
+    color: #4e4e4e;
+    font-weight: bold;
+}
