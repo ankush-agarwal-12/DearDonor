@@ -77,6 +77,28 @@ def fetch_donors(organization_id: str = None):
         print(f"Error fetching donors: {str(e)}")
         return []
 
+def update_donation_email_status(donation_id: str, email_sent: bool, organization_id: str = None):
+    """Update the email_sent status of a donation"""
+    try:
+        if not organization_id:
+            raise ValueError("Organization ID is required")
+            
+        # Update the donation record
+        result = supabase.table("donations").update({
+            "email_sent": email_sent
+        }).eq("id", donation_id).eq("organization_id", organization_id).execute()
+        
+        if result.data and len(result.data) > 0:
+            print(f"✅ Updated donation {donation_id} email_sent status to {email_sent}")
+            return True
+        else:
+            print(f"❌ Failed to update donation {donation_id} email status")
+            return False
+            
+    except Exception as e:
+        print(f"Error updating donation email status: {str(e)}")
+        return False
+
 def record_donation(donor_id, amount, date, purpose, payment_method, payment_details, is_recurring=False, recurring_frequency=None, start_date=None, next_due_date=None, recurring_status=None, linked_to_recurring=False, recurring_id=None, is_scheduled_payment=False, organization_id=None):
     """Record a donation in the database"""
     try:
@@ -586,7 +608,9 @@ def get_organization_settings(organization_id: str) -> dict:
                 'registration_number': org_data.get('registration_number', '') if org_data else '',
                 'pan_number': org_data.get('pan_number', '') if org_data else '',
                 'csr_number': org_data.get('csr_number', '') if org_data else '',
-                'tax_exemption_number': org_data.get('tax_exemption_number', '') if org_data else '',
+                'tax_exemption_number': org_data.get('tax_exemption_number', '') if org_data else '',  # Keep for backward compatibility
+                'tax_exemption_12a': org_data.get('tax_exemption_12a', '') if org_data else '',        # New 12A field
+                'tax_exemption_80g': org_data.get('tax_exemption_80g', '') if org_data else '',        # New 80G field
                 'social_media': {
                     'facebook': social_media.get('facebook', '') if social_media else '',
                     'instagram': social_media.get('instagram', '') if social_media else '',
@@ -642,6 +666,8 @@ def save_organization_settings(organization_id: str, settings: dict) -> bool:
                 'pan_number': org.get('pan_number', ''),
                 'csr_number': org.get('csr_number', ''),
                 'tax_exemption_number': org.get('tax_exemption_number', ''),
+                'tax_exemption_12a': org.get('tax_exemption_12a', ''),
+                'tax_exemption_80g': org.get('tax_exemption_80g', ''),
                 'social_media': org.get('social_media', {}),
                 'signature_holder': org.get('signature_holder', {}),
                 'updated_at': datetime.now().isoformat()

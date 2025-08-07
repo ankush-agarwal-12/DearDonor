@@ -17,7 +17,9 @@ class Organization(Base):
     registration_number = Column(Text)
     pan_number = Column(Text)
     csr_number = Column(Text)
-    tax_exemption_number = Column(Text)
+    tax_exemption_number = Column(Text)  # Keep for backward compatibility
+    tax_exemption_12a = Column(Text)     # New field for 12A number
+    tax_exemption_80g = Column(Text)     # New field for 80G number
     social_media = Column(JSON, default={})
     signature_holder = Column(JSON, default={})
     status = Column(Text, default="active")

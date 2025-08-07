@@ -222,6 +222,13 @@ def send_receipt_email(donation_id: str, db: Session = Depends(get_db), org_id: 
     # Format donation date for email (DD/MM/YYYY format)
     donation_date_formatted = donation.date.strftime("%d/%m/%Y") if hasattr(donation.date, 'strftime') else str(donation.date)
     
+    # Validate SMTP configuration before proceeding
+    from modules.email_utils import get_email_config, validate_email_config
+    email_config = get_email_config(org_id)
+    error_msg = validate_email_config(email_config)
+    if error_msg:
+        raise HTTPException(status_code=400, detail=error_msg)
+    
     # Use organization details from database for email
     email_sent = send_email_receipt(
         to_email=donor.email,
@@ -237,4 +244,9 @@ def send_receipt_email(donation_id: str, db: Session = Depends(get_db), org_id: 
     )
     if not email_sent:
         raise HTTPException(status_code=500, detail="Failed to send email receipt")
+    
+    # Update donation to mark email as sent
+    donation.email_sent = True
+    db.commit()
+    
     return JSONResponse(content={"detail": "Email sent successfully!"}) 

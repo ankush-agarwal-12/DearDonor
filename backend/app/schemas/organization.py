@@ -13,7 +13,9 @@ class OrganizationBase(BaseModel):
     registration_number: Optional[str] = None
     pan_number: Optional[str] = None
     csr_number: Optional[str] = None
-    tax_exemption_number: Optional[str] = None
+    tax_exemption_number: Optional[str] = None  # Keep for backward compatibility
+    tax_exemption_12a: Optional[str] = None     # New 12A field
+    tax_exemption_80g: Optional[str] = None     # New 80G field
     social_media: Optional[Dict[str, Any]] = None
     signature_holder: Optional[Dict[str, Any]] = None
     status: Optional[str] = "active"
@@ -30,7 +32,9 @@ class OrganizationUpdate(BaseModel):
     registration_number: Optional[str]
     pan_number: Optional[str]
     csr_number: Optional[str]
-    tax_exemption_number: Optional[str]
+    tax_exemption_number: Optional[str]  # Keep for backward compatibility
+    tax_exemption_12a: Optional[str]     # New 12A field
+    tax_exemption_80g: Optional[str]     # New 80G field
     social_media: Optional[Dict[str, Any]]
     signature_holder: Optional[Dict[str, Any]]
     status: Optional[str]

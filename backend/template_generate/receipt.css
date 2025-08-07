@@ -22,6 +22,11 @@
     font-weight: 400;
   }
   @font-face {
+    font-family: "Balgin Bold Text";
+    src: url("assets/Balgin-Semi-Bold.ttf") format("opentype");
+    font-weight: 800;
+  }
+  @font-face {
     font-family: "Carollo Script";
     src: url("assets/Carollo_Playscript_Regular.otf") format("opentype");
   }
@@ -84,7 +89,7 @@
   /*──────────────────────────────────────────────────────────────────────────────
     RECEIPT INFO
   ──────────────────────────────────────────────────────────────────────────────*/
-  .receipt-info {
+  /* .receipt-info {
     display: flex;
     justify-content: space-between;
     font-family: "Open Sans";
@@ -97,7 +102,61 @@
   .ri-left p,
   .ri-right p {
     margin: 4px 0;
-  }
+  } */
+   /*──────────────────────────────────────────────────────────────────────────────
+  RECEIPT INFO
+──────────────────────────────────────────────────────────────────────────────*/
+.receipt-info {
+  display: flex;
+  font-family: "Open Sans";
+  font-weight: 400;
+  font-size: 30px;
+  line-height: 1.4;
+  margin-bottom: 10px;
+}
+
+.receipt-no {
+  font-size: 36px; /* Increased size */
+}
+
+.receipt-value {
+  color: red;
+}
+
+.ri-left {
+  width: 45%;
+}
+
+.ri-right {
+  width: 55%;
+}
+
+.ri-left p,
+.ri-right p {
+  margin: 4px 0;
+}
+
+.full-width-row {
+  display: flex;
+  flex-wrap: wrap; /* allows wrapping if absolutely needed */
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  font-family: "Open Sans";
+  font-weight: 400;
+  font-size: 30px;
+  line-height: 1.4;
+  margin-bottom: 10px;
+  gap: 40px; /* adds space between items */
+}
+
+.full-width-row p {
+  margin: 4px 0;
+  white-space: nowrap; /* prevent breaking */
+}
+
+
+  
   
   /*──────────────────────────────────────────────────────────────────────────────
     DIVIDER LINE
@@ -105,7 +164,10 @@
   .divider {
     border: none;
     border-top: 2px solid #000;
-    margin: 0 0 40px;
+    margin: 0 0 20px;
+  }
+  .balgin-bold {
+    font-family: "Balgin Bold Text";
   }
   
   /*──────────────────────────────────────────────────────────────────────────────
@@ -125,13 +187,71 @@
     margin: 0 0 8px;
   }
   
-  .fields p.multiline {
+  /* .fields p.multiline {
     display: block;
+  } */
+  .fields p.multiline {
+    display: flex;
+    align-items: flex-start;
+    
   }
+  .fields p.multiline .underlineother {
+    flex: 1;
+    margin-left: 20px;
+    position: relative;
+    line-height: 2em;
+    min-height: 4em;
+    box-sizing: border-box;
+  
+    background-image: 
+      repeating-linear-gradient(
+        to right,
+        #333,
+        #333 3px,
+        transparent 3px,
+        transparent 6px
+      ),
+      repeating-linear-gradient(
+        to right,
+        #333,
+        #333 3px,
+        transparent 3px,
+        transparent 6px
+      );
+    background-size: 100% 3px;
+    background-position: 0 1.9em, 0 3.9em;
+    background-repeat: no-repeat;
+  }
+  
+  
   
   .fields p strong {
     /* optional synthetic bold */
-    font-weight: 700;
+    font-weight: 800;
+  }
+  .fields p.email {
+    display: flex;
+    align-items: flex-start;
+  }
+  .fields p.email .underlineemail {
+    flex: 1;
+    margin-left: 20px;
+    position: relative;
+    line-height: 2em;
+    min-height: 4em;
+    box-sizing: border-box;
+  
+    background-image: 
+      repeating-linear-gradient(
+        to right,
+        #333,
+        #333 3px,
+        transparent 3px,
+        transparent 6px
+      );
+    background-size: 60% 3px;
+    background-position: 0 1.9em, 0 3.9em;
+    background-repeat: no-repeat;
   }
   
   .fields .underline {

@@ -154,15 +154,15 @@ def generate_receipt_templates(donor_data, org_data, donation_data, organization
         # Organization data
         'org_name': org_data.get('name', 'Organization Name Not Set').upper(),
         'org_name_proper': org_data.get('name', 'Organization Name Not Set'),
-        'registration_number': org_data.get('registration_number', 'REG123456'),
+        'registration_number': org_data.get('registration_number', 'Registration Number Not Set'),
         'office_address': org_data.get('office_address', 'Address Not Set'),
-        'org_pan': org_data.get('pan_number', 'PANNO1234A'),
-        'csr_number': org_data.get('csr_number', 'CSR123456'),
-        'tax_exemption_12a': org_data.get('tax_exemption_number', '12A123456'),
-        'tax_exemption_80g': org_data.get('tax_exemption_number', '80G123456'),
-        'org_phone': org_data.get('phone', '+91 1234567890'),
-        'org_email': org_data.get('email', 'info@organization.com'),
-        'org_website': org_data.get('website', 'www.organization.com'),
+        'org_pan': org_data.get('pan_number', 'PAN Number Not Set'),
+        'csr_number': org_data.get('csr_number', 'CSR Number Not Set'),
+        'tax_exemption_12a': org_data.get('tax_exemption_12a', '12A Number Not Set'),  # Use separate 12A field
+        'tax_exemption_80g': org_data.get('tax_exemption_80g', '80G Number Not Set'),  # Use separate 80G field
+        'org_phone': org_data.get('phone', 'Phone Number Not Set'),
+        'org_email': org_data.get('email', 'Email Not Set'),
+        'org_website': org_data.get('website', 'Website Not Set'),
         
         # Donation data
         'receipt_number': donation_data.get('receipt_number', 'REC/2024/001'),
@@ -235,6 +235,8 @@ def replace_hardcoded_values_receipt(html_content, data):
     html_content = html_content.replace('123 Gandhi Road, Dimna Road Mango JamshedpurMumbai, Maharashtra – 400001', data['office_address'])
     html_content = html_content.replace('ABCDE1234F', data['org_pan'])
     html_content = html_content.replace('CSR-908765', data['csr_number'])
+    html_content = html_content.replace('AAETT3091Q24PT01', data['tax_exemption_12a'])  # 12A number
+    html_content = html_content.replace('AAETT3091Q25PT01', data['tax_exemption_80g'])  # 80G number
     
     # Donor details
     html_content = html_content.replace('Mrs. Dewi Sharma', data['donor_name'])

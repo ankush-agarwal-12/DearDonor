@@ -44,7 +44,9 @@ def get_settings(db: Session = Depends(get_db), org_id: str = Depends(get_curren
         "registration_number": org.registration_number,
         "pan_number": org.pan_number,
         "csr_number": org.csr_number,
-        "tax_exemption_number": org.tax_exemption_number,
+        "tax_exemption_number": org.tax_exemption_number,  # Keep for backward compatibility
+        "tax_exemption_12a": org.tax_exemption_12a,        # New 12A field
+        "tax_exemption_80g": org.tax_exemption_80g,        # New 80G field
         "social_media": org.social_media,
         "signature_holder": org.signature_holder,
         "status": org.status,

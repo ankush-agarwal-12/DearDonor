@@ -139,12 +139,45 @@ def convert_to_html(text, org_details):
     
     return html
 
-def get_template():
-    """Get the email template from file"""
+def get_email_template_from_db(organization_id, template_type):
+    """Get email template from database for organization"""
+    try:
+        from app.db.session import get_db
+        from app.models.email_template import OrganizationEmailTemplate
+        
+        # Get database session
+        db = next(get_db())
+        
+        # Query for active template
+        template = db.query(OrganizationEmailTemplate).filter(
+            OrganizationEmailTemplate.organization_id == organization_id,
+            OrganizationEmailTemplate.template_type == template_type,
+            OrganizationEmailTemplate.is_active == True
+        ).first()
+        
+        if template:
+            return template.content
+        else:
+            print(f"No {template_type} found for organization {organization_id}, using default")
+            return None
+            
+    except Exception as e:
+        print(f"Error fetching email template from database: {e}")
+        return None
+
+def get_template_for_organization(organization_id=None):
+    """Get email template for organization from database or fallback to file/default"""
+    if organization_id:
+        # Try to get from database first
+        db_template = get_email_template_from_db(organization_id, 'receipt_template')
+        if db_template:
+            return db_template
+    
+    # Fallback to file-based template
     try:
         with open('config/email_template.txt', 'r') as f:
-            return f.read().strip()
-    except:
+            return f.read()
+    except FileNotFoundError:
         return """Dear {{Name}},
 
 Thank you for your generous donation of Rs. {{Amount}} /- ({{AmountInWords}}) to {{orgName}}. Your contribution will help us make a difference in the lives of stray animals.
@@ -165,13 +198,33 @@ Contact us:
 {{orgEmail}} | {{orgPhone}}
 {{orgSocial}}"""
 
-def get_subject():
-    """Get the email subject from file"""
+def get_subject_for_organization(organization_id=None):
+    """Get email subject for organization from database or fallback to file/default"""
+    if organization_id:
+        # Try to get from database first
+        db_subject = get_email_template_from_db(organization_id, 'receipt_subject')
+        if db_subject:
+            return db_subject
+    
+    # Fallback to file-based subject
     try:
         with open('config/email_subject.txt', 'r') as f:
-            return f.read().strip()
-    except:
+            return f.read()
+    except FileNotFoundError:
         return "Thank you for your donation - {{Name}}"
+
+def validate_email_config(email_config):
+    """Validate email configuration and return error if invalid"""
+    if not email_config.get('email_address'):
+        return "Email address is not configured. Please set up SMTP settings first."
+    
+    if not email_config.get('email_password'):
+        return "Email password is not configured. Please set up SMTP settings first."
+    
+    if not email_config.get('smtp_server'):
+        return "SMTP server is not configured. Please set up SMTP settings first."
+    
+    return None  # No error
 
 def save_email_template(template):
     """Save email template content to file"""
@@ -223,6 +276,12 @@ def send_email_receipt(to_email, donor_name, receipt_path, amount, receipt_numbe
         # Get email configuration for the organization
         email_config = get_email_config(organization_id)
         
+        # Validate email configuration
+        error_msg = validate_email_config(email_config)
+        if error_msg:
+            print(f"Email configuration error: {error_msg}")
+            return False
+
         # Use provided org_details or fallback to legacy config
         if org_details is None:
             org_details = get_org_details()
@@ -241,11 +300,11 @@ def send_email_receipt(to_email, donor_name, receipt_path, amount, receipt_numbe
         msg['From'] = email_config['email_address']
         msg['To'] = to_email
         # Get and format subject line
-        subject_template = get_subject()
+        subject_template = get_subject_for_organization(organization_id)
         subject = subject_template.replace("{{Name}}", donor_name)
         msg['Subject'] = subject
         # Get the template and format it with all placeholders
-        template = get_template()
+        template = get_template_for_organization(organization_id)
         # Convert amount to words
         try:
             amount_in_words = num2words(float(amount), lang='en_IN').title()
@@ -305,3 +364,11 @@ def send_email_receipt(to_email, donor_name, receipt_path, amount, receipt_numbe
     except Exception as e:
         print(f"Error sending email: {str(e)}")
         return False
+
+def get_template():
+    """Get the email template from file (backward compatibility)"""
+    return get_template_for_organization(None)
+
+def get_subject():
+    """Get the email subject from file (backward compatibility)"""
+    return get_subject_for_organization(None)
