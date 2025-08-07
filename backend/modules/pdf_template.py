@@ -335,16 +335,16 @@ def generate_receipt_bytes(donor_data, organization_id=None):
     # Load organization settings from database
     if organization_id:
         try:
-            org_settings = get_organization_settings(organization_id)
-            org_data = org_settings.get('organization', {})
+        org_settings = get_organization_settings(organization_id)
+        org_data = org_settings.get('organization', {})
             
             # Merge with defaults to ensure all required fields exist
             merged_org_data = default_org_data.copy()
             merged_org_data.update(org_data)
             org_data = merged_org_data
             
-            if not org_data.get('signature_holder'):
-                org_data['signature_holder'] = DEFAULT_RECEIPT_SETTINGS['signature_holder']
+        if not org_data.get('signature_holder'):
+            org_data['signature_holder'] = DEFAULT_RECEIPT_SETTINGS['signature_holder']
                 
         except Exception as e:
             print(f"Error loading organization settings for {organization_id}: {str(e)}")
