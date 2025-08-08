@@ -5,6 +5,7 @@ class Settings(BaseSettings):
     SUPABASE_SERVICE_KEY: str
     SUPABASE_KEY: str
     SUPABASE_ANON_KEY: str
+    SUPABASE_JWT_SECRET: str  # JWT secret for verifying Supabase JWTs
     SUPABASE_DB_URL: str
     # Supabase Storage Configuration
     SUPABASE_STORAGE_URL: str = "https://wwqtkqvcmmcceskstnyf.supabase.co/storage/v1/s3"

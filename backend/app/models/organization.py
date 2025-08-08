@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Text, Boolean, DateTime, JSON, UniqueConstraint
+from sqlalchemy import Column, String, Text, Boolean, DateTime, JSON, UniqueConstraint, ForeignKey
 from sqlalchemy.dialects.postgresql import UUID
 from app.models.base import Base
 import uuid
@@ -27,6 +27,7 @@ class Organization(Base):
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.datetime.utcnow)
     last_login = Column(DateTime)
+    auth_user_id = Column(UUID(as_uuid=True), unique=True, nullable=True)  # Link to auth.users
 
     __table_args__ = (
         UniqueConstraint('email', name='uq_organizations_email'),
